@@ -246,8 +246,13 @@ app.get('/api/app-update', async (req) => {
   }
 });
 
+// Lightweight version probe (no GitHub call) — the UI polls this after kicking
+// off an update to detect when the freshly-installed server is back up.
+app.get('/api/version', async () => ({ version: localVersion() }));
+
 // Download the installer and launch it. The (per-user, no-admin) installer
-// closes this app, replaces the files, and relaunches — so we fire and detach.
+// closes this app, replaces the files, then relaunches the server (its own
+// [Run] step) — the still-open window polls /api/version and reloads itself.
 app.post('/api/app-update/run', async (_req, reply) => {
   if (!updateCache?.downloadUrl) return reply.code(409).send({ error: 'no update available' });
   try {
@@ -256,9 +261,9 @@ app.post('/api/app-update/run', async (_req, reply) => {
     const exePath = join(tmpdir(), `EasyCalc-Setup-${updateCache.latest}.exe`);
     writeFileSync(exePath, Buffer.from(await r.arrayBuffer()));
     const { spawn } = await import('node:child_process');
-    // Inno flags: silent progress, close+restart the running app around the swap.
+    // Silent, close the running server so files unlock, no reboot prompts.
     // Detached + unref so it outlives this process when the installer kills us.
-    spawn(exePath, ['/SILENT', '/CLOSEAPPLICATIONS', '/RESTARTAPPLICATIONS'], {
+    spawn(exePath, ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/CLOSEAPPLICATIONS', '/NORESTART'], {
       detached: true,
       stdio: 'ignore',
     }).unref();

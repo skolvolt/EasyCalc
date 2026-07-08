@@ -38,6 +38,11 @@ export const useProject = () => useContext(Ctx);
 const EMBEDDED: { state: ProjectState; name: string } | undefined = (window as any).__QM_EMBEDDED__;
 export const isEmbedded = !!EMBEDDED;
 
+/** Set before an intentional reload (e.g. applying an update) so the
+ *  unsaved-changes close warning doesn't fire on that navigation. */
+let unloadGuardBypassed = false;
+export function bypassUnloadGuard(): void { unloadGuardBypassed = true; }
+
 /** Attach the current cell-history snapshot so it persists with the project. */
 const withHistory = (st: ProjectState): ProjectState => ({ ...st, cell_history: dumpHistory() });
 
@@ -93,9 +98,26 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const past = useRef<ProjectState[]>([]);
   const future = useRef<ProjectState[]>([]);
   const lastEdit = useRef(0);
+  const dirtyRef = useRef(false);
   stateRef.current = state;
   pathRef.current = path;
   autosaveRef.current = autosave;
+  dirtyRef.current = dirty;
+
+  // Warn before the window closes with unsaved changes. Skipped when autosave
+  // will persist them (server mode); always on for the serverless web copy,
+  // which only saves via an explicit download.
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (unloadGuardBypassed) return;
+      if (dirtyRef.current && (isEmbedded || !autosaveRef.current)) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, []);
 
   useEffect(() => {
     document.body.classList.toggle('dark', theme === 'dark');

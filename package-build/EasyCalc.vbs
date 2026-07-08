@@ -21,6 +21,12 @@ env("QM_UPDATE_REPO") = "skolvolt/EasyCalc"
 sh.CurrentDirectory = base
 sh.Run """" & base & "\node\EasyCalc.exe"" ""app\server.mjs""", 0, False
 
+' /noopen: just (re)start the server, no new window. Used by the updater's
+' relaunch — the already-open window polls /api/version and reloads itself.
+If WScript.Arguments.Count > 0 Then
+  If LCase(WScript.Arguments(0)) = "/noopen" Then WScript.Quit
+End If
+
 ' 2) Give it a moment to bind the port.
 WScript.Sleep 2500
 

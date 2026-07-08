@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { checkForUpdate, runUpdate, type UpdateInfo } from '../updateClient';
+import { useProject } from '../state';
+import { checkForUpdate, runUpdate, awaitUpdateAndReload, type UpdateInfo } from '../updateClient';
 
 /**
  * Manual "Check for updates" dialog. Polls GitHub fresh (bypassing the hourly
@@ -7,10 +8,12 @@ import { checkForUpdate, runUpdate, type UpdateInfo } from '../updateClient';
  * newer release is available.
  */
 export default function UpdateDialog({ onClose }: { onClose: () => void }) {
+  const { path, dirty, saveNow } = useProject();
   const [info, setInfo] = useState<UpdateInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState<'' | 'installing' | 'timeout'>('');
 
   const check = () => {
     setLoading(true);
@@ -30,10 +33,19 @@ export default function UpdateDialog({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   const update = async () => {
+    if (!info) return;
     setBusy(true);
-    if (await runUpdate()) return; // installer takes over
-    if (info?.releaseUrl) window.open(info.releaseUrl, '_blank'); // manual fallback
-    setBusy(false);
+    // preserve unsaved work across the update (server mode)
+    if (dirty && path) { try { await saveNow(); } catch { /* keep going */ } }
+    if (!(await runUpdate())) {
+      if (info.releaseUrl) window.open(info.releaseUrl, '_blank'); // manual fallback
+      setBusy(false);
+      return;
+    }
+    // installer is running; wait for the new build to come back, then reload.
+    setPhase('installing');
+    const reloaded = await awaitUpdateAndReload(info.current, path);
+    if (!reloaded) setPhase('timeout'); // page will otherwise have reloaded
   };
 
   // GitHub unreachable (offline, or repo not configured yet) → no latest version.
@@ -47,7 +59,11 @@ export default function UpdateDialog({ onClose }: { onClose: () => void }) {
           <button className="toast-x" title="Close" onClick={onClose}>✕</button>
         </div>
 
-        {loading ? (
+        {phase === 'installing' ? (
+          <p className="modal-status">Installing update… EasyCalc will reload automatically when it’s ready.</p>
+        ) : phase === 'timeout' ? (
+          <p className="modal-status bad">Update installed. If EasyCalc doesn’t reload shortly, relaunch it from your shortcut.</p>
+        ) : loading ? (
           <p className="modal-status">Checking GitHub…</p>
         ) : (
           <>

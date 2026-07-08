@@ -4,8 +4,10 @@
 ;
 ; Per-user install (no admin) so first-run AND self-update never prompt for
 ; elevation. The self-updater runs this same exe with
-;   /SILENT /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS
-; which closes the running app, swaps files, and relaunches it.
+;   /VERYSILENT /SUPPRESSMSGBOXES /CLOSEAPPLICATIONS /NORESTART
+; which closes the running server so files unlock, swaps them, then the silent
+; [Run] step relaunches the server (no new window); the already-open app window
+; polls /api/version and reloads itself onto the new build.
 
 #ifndef AppVersion
   #define AppVersion "0.0.0"
@@ -28,10 +30,11 @@ UninstallDisplayIcon={app}\EasyCalc.ico
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-; Close/restart the running app around a file swap (belt-and-braces with the
-; command-line flags the updater passes).
+; Close the running server so its files unlock during the swap. We relaunch it
+; ourselves (see [Run]/[Code]), so leave RestartApplications off to avoid a
+; double start.
 CloseApplications=yes
-RestartApplications=yes
+RestartApplications=no
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a &Desktop shortcut"; GroupDescription: "Shortcuts:"
@@ -53,9 +56,17 @@ Name: "{group}\Uninstall EasyCalc"; Filename: "{uninstallexe}"
 Name: "{userdesktop}\EasyCalc";  Filename: "{app}\EasyCalc.vbs"; IconFilename: "{app}\EasyCalc.ico"; WorkingDir: "{app}"; Comment: "Launch EasyCalc"; Tasks: desktopicon
 
 [Run]
-; Offer to launch after a normal (interactive) install. Silent self-updates skip
-; this and rely on RestartApplications to relaunch the app that was closed.
+; Interactive install: offer to launch (server + app window).
 Filename: "{app}\EasyCalc.vbs"; Description: "Launch EasyCalc now"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent
+; Silent self-update: relaunch the server ONLY (no new window). The still-open
+; app window polls /api/version and reloads itself onto the new build.
+Filename: "{app}\EasyCalc.vbs"; Parameters: "/noopen"; WorkingDir: "{app}"; Flags: nowait; Check: IsSilent
 
 ; NOTE: user projects live in Documents\Project Model and are intentionally
 ; never touched by install or uninstall.
+
+[Code]
+function IsSilent: Boolean;
+begin
+  Result := WizardSilent;
+end;
