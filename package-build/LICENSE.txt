@@ -1,0 +1,44 @@
+EASYCALC - PROPRIETARY LICENSE
+==============================
+
+Copyright (c) 2026 The Roach House. All rights reserved.
+
+EasyCalc, including its software, design, calculation logic, catalogue
+data, documentation, icons, and all other build contents (together,
+"the Software"), is the proprietary property of The Roach House.
+
+Permission is granted to the person who received this copy directly
+from The Roach House ("the Licensee") to install and run the Software for
+evaluation and ordinary business use only.
+
+RESTRICTIONS - the Licensee and any other person may NOT:
+
+ 1. Copy, reproduce, or redistribute the Software or any part of the
+    build contents, in whole or in part, by any means.
+ 2. Modify, adapt, translate, or create derivative works of the
+    Software.
+ 3. Decompile, disassemble, reverse engineer, or otherwise attempt to
+    derive the source code, logic, or structure of the Software.
+ 4. Extract, reuse, or republish any component of the Software,
+    including its pricing logic, catalogue data, or templates.
+ 5. Rent, lease, lend, sell, sublicense, or transfer the Software or
+    any rights in it to any third party.
+ 6. Remove or alter this notice or any proprietary markings.
+
+Project files (.qmproj) created by the Licensee with the Software
+remain the Licensee's own data.
+
+NO WARRANTY: the Software is provided "AS IS", without warranty of any
+kind, express or implied, including but not limited to warranties of
+merchantability, fitness for a particular purpose, accuracy of
+calculations, or non-infringement. In no event shall The
+Roach House be liable for any claim, damages, or other liability
+arising from the use of, or inability to use, the Software, including
+any decisions, quotations, or invoices produced with it.
+
+Unauthorised copying, modification, or distribution of the Software
+may result in civil and/or criminal penalties and will be prosecuted
+to the maximum extent possible under law.
+
+All rights not expressly granted are reserved by
+The Roach House.

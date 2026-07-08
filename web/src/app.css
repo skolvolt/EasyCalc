@@ -1,0 +1,509 @@
+* { box-sizing: border-box; margin: 0; }
+
+:root {
+  --bg: #f4f6f9;
+  --panel: #ffffff;
+  --ink: #1a2433;
+  --muted: #67788e;
+  --line: #b9c3d0;
+  --line-soft: #d3dae3;
+  --accent: #1256a0;
+  --accent-soft: #e8f0fa;
+  --good: #157a4a;
+  --bad: #b3372c;
+  --sidebar: #14213a;
+  --sidebar-ink: #c9d4e5;
+}
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 14px;
+}
+
+/* ---- unified scrollbars everywhere (match the app accent, theme-aware) ---- */
+* { scrollbar-width: thin; scrollbar-color: var(--accent) var(--accent-soft); }
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: var(--accent-soft); border-radius: 6px; }
+::-webkit-scrollbar-thumb {
+  background: var(--accent); border-radius: 6px; border: 2px solid var(--accent-soft);
+}
+::-webkit-scrollbar-thumb:hover { filter: brightness(1.15); }
+::-webkit-scrollbar-corner { background: var(--accent-soft); }
+
+.layout { display: flex; min-height: 100vh; }
+
+.sidebar {
+  width: 210px; flex-shrink: 0; background: var(--sidebar); color: var(--sidebar-ink);
+  padding: 0 0 18px; position: sticky; top: 0; height: 100vh;
+}
+.sidebar .brand {
+  padding: 0 0 12px; border-bottom: 1px solid #2a3a5c; margin-bottom: 12px;
+}
+.sidebar .brand-logo {
+  display: block; width: 100%; height: auto;
+}
+.sidebar .brand-project {
+  display: block; margin-top: 8px; padding: 0 14px;
+  font-weight: 400; color: var(--sidebar-ink); font-size: 11px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sidebar nav button {
+  display: block; width: 100%; text-align: left; padding: 9px 20px;
+  background: none; border: none; color: var(--sidebar-ink); font-size: 14px; cursor: pointer;
+}
+.sidebar nav button:hover { background: #1d2e4f; color: #fff; }
+.sidebar nav button.active { background: var(--accent); color: #fff; }
+.sidebar .save-state { padding: 14px 20px; font-size: 11px; color: #8296b4; }
+
+/* stretch to the window with consistent right-hand padding at any size */
+.main { flex: 1; min-width: 0; padding: 24px 30px; }
+.main h1 { font-size: 20px; margin-bottom: 4px; }
+.main .subtitle { color: var(--muted); margin-bottom: 20px; font-size: 13px; }
+
+.cards { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 22px; }
+.card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  padding: 14px 18px; min-width: 170px;
+}
+.card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.card .value { font-size: 21px; font-weight: 650; margin-top: 3px; }
+.card .value.good { color: var(--good); }
+.card .value.bad { color: var(--bad); }
+
+.panel {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  padding: 16px 18px; margin-bottom: 20px;
+}
+.panel h2 { font-size: 15px; margin-bottom: 12px; }
+
+table.grid { border-collapse: collapse; width: 100%; font-size: 13px; }
+table.grid th, table.grid td { border: 1px solid var(--line); padding: 5px 8px; text-align: left; }
+table.grid { border: 1px solid var(--line); }
+table.grid th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
+table.grid td.num, table.grid th.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.grid tr.section td { background: #eef2f7; font-weight: 700; }
+table.grid tr.subcat td { background: #f7fafd; font-weight: 600; color: var(--accent); }
+table.grid input {
+  width: 100%; border: 1px solid transparent; background: transparent; padding: 2px 4px;
+  font: inherit; text-align: inherit; border-radius: 3px;
+}
+table.grid td.num input { text-align: right; }
+table.grid input:hover { border-color: var(--line); }
+table.grid input:focus { border-color: var(--accent); background: #fff; outline: none; }
+table.grid td.qtycell { background: #fbfcf7; min-width: 46px; }
+
+.detail-form { display: grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap: 10px 24px; }
+.detail-form label { display: block; font-size: 11px; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+.detail-form input, .detail-form textarea {
+  width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 5px; font: inherit;
+}
+
+.toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+.toolbar select, .toolbar input {
+  padding: 6px 10px; border: 1px solid var(--line); border-radius: 5px; font: inherit; background: #fff;
+}
+button.btn {
+  padding: 7px 14px; background: var(--accent); border: none; color: #fff;
+  border-radius: 5px; font: inherit; cursor: pointer;
+}
+button.btn.secondary { background: #fff; color: var(--accent); border: 1px solid var(--accent); }
+button.btn.danger { background: #fff; color: var(--bad); border: 1px solid var(--bad); }
+button.btn:hover { filter: brightness(1.08); }
+
+.pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.pill.standard { background: #e3efe7; color: var(--good); }
+.pill.unique { background: #fdeee9; color: var(--bad); }
+
+.invoice { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 34px 40px; max-width: 900px; }
+.invoice header { display: flex; justify-content: space-between; margin-bottom: 22px; }
+.invoice h2 { font-size: 22px; }
+.invoice .totals td { font-weight: 700; }
+
+/* ---- dark mode ---- */
+body.dark {
+  --bg: #10151d;
+  --panel: #1a2230;
+  --ink: #e4eaf3;
+  --muted: #93a2b7;
+  --line: #2c3a4e;
+  --accent: #4f95e0;
+  --accent-soft: #203047;
+  --good: #4cc38a;
+  --bad: #e5715f;
+  --sidebar: #0b111d;
+  --sidebar-ink: #aebbd0;
+  --line-soft: #26313f;
+}
+body.dark table.grid tr.section td { background: #223047; }
+body.dark table.grid tr.subcat td { background: #1e2939; }
+body.dark table.grid td.qtycell { background: #1d2735; }
+body.dark table.grid input:focus { background: #101722; }
+body.dark .toolbar select, body.dark .toolbar input,
+body.dark .detail-form input, body.dark .detail-form textarea,
+body.dark table.grid select { background: #101722; color: var(--ink); border-color: var(--line); }
+body.dark button.btn.secondary { background: transparent; }
+table.grid select { border: 1px solid transparent; background: transparent; color: inherit; font: inherit; }
+table.grid select:hover { border-color: var(--line); }
+table.grid input, table.grid select { color: inherit; }
+
+/* ---- sidebar bottom: actions, save state, logo ---- */
+.sidebar { display: flex; flex-direction: column; }
+/* nav takes the leftover space and scrolls internally if the window is short,
+   so the bottom actions stay pinned and fully in view (no page scroll needed) */
+.sidebar nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.sidebar-bottom { flex-shrink: 0; }
+.sidebar-actions { padding: 8px 0; border-top: 1px solid #2a3a5c; }
+.sidebar-actions button {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  width: 100%; text-align: left; padding: 7px 20px;
+  background: none; border: none; color: var(--sidebar-ink); cursor: pointer;
+  /* monospace, bolder so it stays legible at small size */
+  font-family: 'Courier New', 'Courier', monospace; font-weight: 700; font-size: 13px;
+}
+.sidebar-actions button .ico {
+  flex-shrink: 0; font-size: 14px; width: 1.2em; text-align: center;
+}
+.sidebar-actions button:hover { background: #1d2e4f; color: #fff; }
+/* faint separators between the bottom-left action buttons */
+.sidebar-actions button + button,
+.sidebar-actions .autosave-row + button {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/* autosave toggle */
+.autosave-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 20px; color: var(--sidebar-ink); font-size: 13px; cursor: pointer;
+}
+.switch { position: relative; display: inline-block; width: 34px; height: 18px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch .slider {
+  position: absolute; inset: 0; border-radius: 10px; background: #3a4a66; transition: 0.15s;
+}
+.switch .slider::before {
+  content: ''; position: absolute; width: 14px; height: 14px; left: 2px; top: 2px;
+  border-radius: 50%; background: #fff; transition: 0.15s;
+}
+.switch input:checked + .slider { background: var(--accent); }
+.switch input:checked + .slider::before { transform: translateX(16px); }
+
+/* undo / redo — pinned top-right of the window */
+.history-bar {
+  position: fixed; top: 12px; right: 18px; z-index: 50; display: flex; gap: 6px;
+}
+.history-bar button {
+  padding: 5px 12px; font: inherit; font-size: 13px; cursor: pointer;
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 6px;
+}
+.history-bar button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.history-bar button:disabled { opacity: 0.4; cursor: default; }
+.sidebar-logo { padding: 10px 20px 4px; }
+/* no forced background — transparent PNG/GIF logos render as-is */
+.sidebar-logo img { max-width: 100%; max-height: 64px; border-radius: 4px; }
+
+.license-note { margin-top: 28px; font-size: 11px; color: var(--muted); text-align: center; }
+
+/* ---- home screen ---- */
+/* animated matrix background sits behind the start-page content */
+.matrix-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+.home { max-width: 860px; margin: 0 auto; padding: 48px 30px; position: relative; z-index: 1; }
+.home h1 { font-size: 26px; margin-bottom: 6px; }
+.home-title { margin-bottom: 10px; }
+.home-logo { height: 64px; width: auto; max-width: 100%; display: block; }
+.home .subtitle { color: var(--muted); margin-bottom: 24px; }
+.home code { background: var(--accent-soft); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+.subtle-path { color: var(--muted); font-size: 12px; word-break: break-all; }
+
+/* ---- no-truncation wide tables (Equipment Schedule) ---- */
+/* scrollbar look comes from the global rules above so every bar matches */
+.scroll-x { overflow-x: auto; }
+table.grid.nowrap th, table.grid.nowrap td { white-space: nowrap; }
+table.grid.nowrap td input { min-width: 60px; }
+table.grid.nowrap td.desc input { min-width: 420px; }
+
+/* ---- L&M section boxes ---- */
+.lm-section {
+  background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent);
+  border-radius: 8px; padding: 14px 18px; margin-bottom: 18px;
+}
+.lm-section h2 { font-size: 15px; margin-bottom: 10px; color: var(--accent); }
+
+/* ---- pricelist panel ---- */
+.diff-old { color: var(--bad); text-decoration: line-through; margin-right: 6px; }
+.diff-new { color: var(--good); font-weight: 600; }
+.browse-btn {
+  padding: 4px 10px; font: inherit; cursor: pointer; white-space: nowrap;
+  background: var(--accent-soft); color: var(--accent);
+  border: 1px solid var(--accent); border-radius: 5px;
+}
+
+/* ---- row "remove" (minus) buttons — themed + larger glyph ---- */
+button.btn.minus {
+  padding: 2px 12px; line-height: 1; font-size: 20px; font-weight: 700;
+  background: transparent; color: var(--bad); border: 1px solid var(--line);
+  border-radius: 5px;
+}
+button.btn.minus:hover { border-color: var(--bad); background: rgba(179, 55, 44, 0.08); }
+body.dark button.btn.minus { color: var(--bad); border-color: var(--line); }
+body.dark button.btn.minus:hover { background: rgba(229, 113, 95, 0.15); }
+
+/* ---- brand area (top of sidebar) on a neutral backdrop ---- */
+/* full-width neutral banner running edge-to-edge across the sidebar.
+   True mid-grey so both light and dark company logos stay legible. */
+.brand-neutral {
+  background: #808285; padding: 12px 14px; border-radius: 0 0 10px 10px;
+  display: flex; align-items: center; justify-content: center; min-height: 48px;
+}
+.brand-neutral img { max-width: 100%; max-height: 54px; display: block; }
+.brand-placeholder { color: #2f3338; font-size: 12px; font-style: italic; }
+.app-logo-bottom { padding: 10px 16px 2px; }
+.app-logo-bottom img { display: block; width: 100%; height: auto; }
+
+/* ---- currency picker (dashboard) ---- */
+.currency-pick { display: inline-flex; align-items: center; gap: 6px; }
+.currency-pick select {
+  padding: 4px 8px; border: 1px solid var(--line); border-radius: 5px; font: inherit;
+  background: var(--panel); color: var(--ink);
+}
+.fx-note { color: var(--muted); font-size: 11px; }
+
+/* dashboard logo preview on a neutral backdrop */
+.brand-preview {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #808285; border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px;
+}
+.brand-preview img { max-height: 40px; display: block; }
+
+/* branding sub-blocks + outline buttons (match the Start-page button style) */
+.brand-block { padding: 10px 0; }
+.brand-block + .brand-block { border-top: 1px solid var(--line-soft); }
+.brand-block h3 { font-size: 13px; margin-bottom: 8px; color: var(--muted); font-weight: 600; }
+.btn-outline {
+  padding: 6px 14px; font: inherit; font-size: 13px; cursor: pointer; display: inline-block;
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 6px;
+}
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.default-toggle {
+  display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;
+}
+.default-toggle .switch .slider { background: #9aa5b3; }
+.default-toggle .switch input:checked + .slider { background: var(--accent); }
+
+/* ---- Schedule: sticky toolbar, frozen columns, twin scrollbars ---- */
+.sticky-toolbar {
+  position: sticky; top: 0; z-index: 30; background: var(--bg);
+  padding: 8px 0; margin-bottom: 6px; border-bottom: 1px solid var(--line);
+}
+/* synced horizontal scrollbar shown above the table */
+.scroll-top { overflow-x: auto; overflow-y: hidden; }
+.scroll-top > div { height: 1px; }
+
+/* freeze the first four columns while scrolling right */
+table.grid.freeze th:nth-child(-n+4),
+table.grid.freeze td:nth-child(-n+4) {
+  position: sticky; z-index: 2; background: var(--panel);
+}
+table.grid.freeze th:nth-child(-n+4) { z-index: 4; background: var(--accent-soft); }
+table.grid.freeze th:nth-child(1), table.grid.freeze td:nth-child(1) { left: 0; }
+table.grid.freeze th:nth-child(2), table.grid.freeze td:nth-child(2) { left: 300px; }
+table.grid.freeze th:nth-child(3), table.grid.freeze td:nth-child(3) { left: 400px; }
+table.grid.freeze th:nth-child(4), table.grid.freeze td:nth-child(4) { left: 500px; }
+/* fix the four frozen column widths (on header cells; bodies follow) */
+table.grid.freeze th:nth-child(1) { min-width: 300px; max-width: 300px; width: 300px; }
+table.grid.freeze th:nth-child(2) { min-width: 100px; max-width: 100px; width: 100px; }
+table.grid.freeze th:nth-child(3) { min-width: 100px; max-width: 100px; width: 100px; }
+table.grid.freeze th:nth-child(4) { min-width: 100px; max-width: 100px; width: 100px; }
+/* right divider so the frozen block reads as a unit */
+table.grid.freeze th:nth-child(4), table.grid.freeze td:nth-child(4) {
+  border-right: 2px solid var(--line);
+}
+table.grid.freeze td.desc input { min-width: 0; }
+/* section / subcategory header rows span full width — don't freeze them.
+   Re-assert their colours here so the frozen-column `background: var(--panel)`
+   rule above doesn't win (it did in light mode → white text on white). */
+table.grid.freeze tr.subcat td, table.grid.freeze tr.sec-head td { position: static; }
+table.grid.freeze tr.sec-head td { background: var(--accent); color: #fff; }
+table.grid.freeze tr.subcat td { background: #f7fafd; color: var(--accent); }
+body.dark table.grid.freeze tr.sec-head td { background: #223047; }
+body.dark table.grid.freeze tr.subcat td { background: #1e2939; }
+
+/* collapsible section header row */
+tr.sec-head td {
+  background: var(--accent); color: #fff; font-weight: 700; cursor: pointer;
+  position: sticky; left: 0;
+}
+body.dark tr.sec-head td { background: #223047; }
+tr.sec-head td .caret { display: inline-block; width: 14px; }
+
+/* floating "back to top" button */
+.scroll-top-btn {
+  position: fixed; bottom: 24px; right: 24px; z-index: 100;
+  width: 46px; height: 46px; border-radius: 50%;
+  background: var(--accent); color: #fff; border: none; cursor: pointer;
+  font-size: 22px; line-height: 1; font-weight: 700;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.28);
+  display: flex; align-items: center; justify-content: center;
+}
+.scroll-top-btn:hover { filter: brightness(1.12); }
+
+/* embedded (standalone HTML) banner */
+.embedded-banner {
+  background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent);
+  border-radius: 6px; padding: 8px 12px; margin-bottom: 14px; font-size: 13px;
+}
+
+/* ---- Schedule: freeze the header row (column titles) on vertical scroll ---- */
+.scroll-x.freeze-scroll { max-height: calc(100vh - 230px); overflow: auto; }
+table.grid.freeze thead th { position: sticky; top: 0; z-index: 3; }
+/* frozen-column header cells sit above the left-sticky body cells */
+table.grid.freeze thead th:nth-child(-n+4) { z-index: 6; }
+
+/* ---- per-cell value history menu (right-click) ---- */
+.cell-hist-menu {
+  position: fixed; z-index: 200; min-width: 150px; max-width: 220px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.25); padding: 4px; font-size: 13px;
+  max-height: 232px; overflow-y: auto;
+}
+.cell-hist-title {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted); padding: 4px 8px;
+}
+.cell-hist-empty { padding: 6px 8px; color: var(--muted); font-style: italic; }
+.cell-hist-item {
+  display: flex; justify-content: space-between; gap: 12px; align-items: baseline;
+  width: 100%; text-align: left; border: none; background: none; cursor: pointer;
+  padding: 5px 8px; border-radius: 5px; color: var(--ink); font: inherit;
+}
+.cell-hist-item:hover { background: var(--accent-soft); }
+.cell-hist-item .v { font-variant-numeric: tabular-nums; font-weight: 600; }
+.cell-hist-item .t { color: var(--muted); font-size: 11px; white-space: nowrap; }
+
+/* ---- "changed elsewhere" toast (non-obstructing, bottom-centre) ---- */
+.update-toast {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+  z-index: 150; display: flex; align-items: center; gap: 12px;
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--accent); border-radius: 10px;
+  padding: 10px 14px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28); font-size: 13px;
+}
+.update-toast .btn { padding: 5px 12px; }
+.update-toast .toast-x {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  font-size: 14px; padding: 2px 4px; line-height: 1;
+}
+.update-toast .toast-x:hover { color: var(--ink); }
+
+/* ---- centered modal dialog (Check for updates) — uses theme vars so it
+       adapts to light/dark automatically ---- */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(10, 16, 28, 0.45);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal {
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 12px;
+  padding: 18px 20px; width: min(400px, 92vw);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+.modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.modal-head h3 { margin: 0; font-size: 16px; color: var(--accent); }
+.modal .toast-x {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  font-size: 15px; padding: 2px 4px; line-height: 1;
+}
+.modal .toast-x:hover { color: var(--ink); }
+.ver-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 0; border-bottom: 1px solid var(--line-soft); font-size: 14px;
+}
+.ver-row b { font-variant-numeric: tabular-nums; }
+.modal-status { margin: 12px 0 4px; font-size: 13px; color: var(--muted); }
+.modal-status.good { color: var(--good); }
+.modal-status.bad { color: var(--bad); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+/* ---- custom Schedule row: inline remove button in the frozen name column ---- */
+.desc-with-del { display: flex; align-items: center; gap: 6px; }
+.desc-with-del input { flex: 1 1 auto; min-width: 0; }
+.desc-with-del .btn.minus { flex: 0 0 auto; padding: 0 9px; font-size: 17px; line-height: 1.5; }
+
+/* ---- spreadsheet range selection (Ctrl+C / Ctrl+V) ---- */
+table.grid td.cell-sel {
+  background: var(--accent-soft) !important;
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* ---- invalid numeric input: flag the cell red ---- */
+input.num-error,
+table.grid input.num-error {
+  border-color: var(--bad) !important;
+  background: rgba(179, 55, 44, 0.14) !important;
+  color: var(--bad);
+}
+
+/* ---- Quotes & Invoices: document tabs ---- */
+.doc-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 14px; border-bottom: 2px solid var(--line); }
+.doc-tabs button {
+  padding: 8px 16px; font: inherit; font-size: 13px; cursor: pointer;
+  background: none; border: none; color: var(--muted);
+  border-bottom: 2px solid transparent; margin-bottom: -2px;
+}
+.doc-tabs button:hover { color: var(--ink); }
+.doc-tabs button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+/* ---- invoice preview: company letterhead + bill-to ---- */
+.invoice .letterhead h2 { font-size: 16px; margin-bottom: 2px; }
+.invoice .letterhead .logo { max-height: 56px; max-width: 220px; margin-bottom: 8px; display: block; }
+.invoice .bill-to { margin: 2px 0 18px; }
+.invoice .bill-to .muted { color: var(--muted); letter-spacing: .05em; }
+
+/* ---- Notes page (rich text editor) ---- */
+.notes-toolbar {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  padding: 8px; border: 1px solid var(--line); border-bottom: none;
+  border-radius: 8px 8px 0 0; background: var(--panel);
+}
+.notes-tool {
+  min-width: 30px; padding: 5px 9px; font: inherit; font-size: 13px; cursor: pointer;
+  background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 5px;
+}
+.notes-tool:hover { border-color: var(--accent); color: var(--accent); }
+.notes-sep { width: 1px; height: 20px; background: var(--line); margin: 0 2px; }
+.notes-editor {
+  min-height: 440px; padding: 16px 18px; line-height: 1.5; outline: none; overflow-y: auto;
+  border: 1px solid var(--line); border-radius: 0 0 8px 8px;
+  background: var(--panel); color: var(--ink);
+}
+.notes-editor:focus { border-color: var(--accent); }
+.notes-editor:empty::before { content: attr(data-placeholder); color: var(--muted); }
+.notes-editor h1 { font-size: 22px; margin: 10px 0 4px; }
+.notes-editor h2 { font-size: 18px; margin: 8px 0 4px; }
+.notes-editor h3 { font-size: 15px; margin: 8px 0 4px; }
+.notes-editor ul, .notes-editor ol { margin-left: 24px; }
+
+/* rendered rich-text (invoice preview) */
+.rt-content { line-height: 1.5; }
+.rt-content h1 { font-size: 20px; margin: 6px 0 3px; }
+.rt-content h2 { font-size: 17px; margin: 6px 0 3px; }
+.rt-content h3 { font-size: 15px; margin: 6px 0 3px; }
+.rt-content ul, .rt-content ol { margin-left: 22px; }
+
+/* ---- Room Summary: notes + floorplan editor ---- */
+.summary-extras { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+.summary-extras h3 { font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
+.summary-extras textarea {
+  width: 100%; min-height: 120px; padding: 8px 10px; font: inherit; resize: vertical;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink);
+}
+.floorplan-drop {
+  border: 1px dashed var(--line); border-radius: 8px; padding: 10px; text-align: center;
+  min-height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+}
+.floorplan-drop img { max-width: 100%; max-height: 220px; border-radius: 4px; display: block; }
+@media (max-width: 720px) { .summary-extras { grid-template-columns: 1fr; } }
