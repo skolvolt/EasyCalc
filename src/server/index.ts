@@ -11,6 +11,7 @@ import {
 import { checkPricelist, type PricelistItemQuery } from './pricelist';
 import { isNewer } from './version';
 import { importCatalogue } from './catalogueImport';
+import { importLm } from './lmImport';
 import { renderDocument, type DocKind } from './invoiceHtml';
 import { renderWorkbook } from './invoiceXlsx';
 import { htmlToPdf } from './pdf';
@@ -51,12 +52,38 @@ app.get('/api/whoami', async () => {
   }
 });
 
-// Import an equipment list from a spreadsheet, mapping columns by header keyword.
+// A .json list export or a .qmproj project → pull the list array out of it.
+const isJsonList = (f: string) => /\.(json|qmproj)$/i.test(f);
+function listFromJsonFile(file: string, field: 'catalogue' | 'labour_materials'): unknown[] {
+  const data = JSON.parse(readFileSync(file, 'utf8'));
+  const list = Array.isArray(data) ? data : (data as any)?.[field];
+  if (!Array.isArray(list)) throw new Error(`No ${field.replace('_', ' & ')} list found in that file.`);
+  return list;
+}
+
+// Import an equipment list — from a spreadsheet (column-mapped) OR a .json
+// export / .qmproj project (its catalogue).
 app.post('/api/catalogue/import', async (req, reply) => {
   const { file } = (req.body ?? {}) as { file?: string };
   if (!file) return reply.code(400).send({ error: 'file required' });
   try {
-    return importCatalogue(file);
+    return isJsonList(file)
+      ? { items: listFromJsonFile(file, 'catalogue'), mapped: [] }
+      : importCatalogue(file);
+  } catch (e: any) {
+    return reply.code(400).send({ error: e.message });
+  }
+});
+
+// Import a Labour & Materials list — from a spreadsheet OR a .json export /
+// .qmproj project (its labour_materials).
+app.post('/api/lm/import', async (req, reply) => {
+  const { file } = (req.body ?? {}) as { file?: string };
+  if (!file) return reply.code(400).send({ error: 'file required' });
+  try {
+    return isJsonList(file)
+      ? { items: listFromJsonFile(file, 'labour_materials'), mapped: [] }
+      : importLm(file);
   } catch (e: any) {
     return reply.code(400).send({ error: e.message });
   }
@@ -114,16 +141,21 @@ app.put('/api/project', async (req, reply) => {
 });
 
 // Native "Open File" dialog on the machine the server runs on.
-// kind=project (.qmproj) | pricelist (.xlsx/.csv)
-async function nativeOpenDialog(kind: 'project' | 'pricelist'): Promise<string | null> {
+// kind=project (.qmproj) | pricelist (.xlsx/.csv) | list (spreadsheet or json/qmproj)
+async function nativeOpenDialog(kind: 'project' | 'pricelist' | 'list'): Promise<string | null> {
   const { execFile } = await import('node:child_process');
   const { promisify } = await import('node:util');
   const run = promisify(execFile);
   const winFilter =
     kind === 'pricelist'
       ? "Pricelists (*.xlsx;*.xls;*.csv)|*.xlsx;*.xls;*.csv|All files (*.*)|*.*"
-      : "EasyCalc projects (*.qmproj)|*.qmproj|All files (*.*)|*.*";
-  const macPrompt = kind === 'pricelist' ? 'Choose a pricelist file' : 'Open EasyCalc project';
+      : kind === 'list'
+        ? "Lists (*.xlsx;*.xls;*.csv;*.json;*.qmproj)|*.xlsx;*.xls;*.csv;*.json;*.qmproj|All files (*.*)|*.*"
+        : "EasyCalc projects (*.qmproj)|*.qmproj|All files (*.*)|*.*";
+  const macPrompt =
+    kind === 'pricelist' ? 'Choose a pricelist file'
+      : kind === 'list' ? 'Choose a list (spreadsheet, export, or project)'
+        : 'Open EasyCalc project';
   try {
     if (process.platform === 'win32') {
       const { stdout } = await run('powershell', [
@@ -182,8 +214,9 @@ app.post('/api/browse-save', async (req) => {
 
 app.post('/api/browse-open', async () => ({ path: await nativeOpenDialog('project') }));
 app.post('/api/browse-file', async (req) => {
-  const { kind } = (req.body ?? {}) as { kind?: 'project' | 'pricelist' };
-  return { path: await nativeOpenDialog(kind === 'pricelist' ? 'pricelist' : 'project') };
+  const { kind } = (req.body ?? {}) as { kind?: 'project' | 'pricelist' | 'list' };
+  const k = kind === 'pricelist' || kind === 'list' ? kind : 'project';
+  return { path: await nativeOpenDialog(k) };
 });
 
 // Latest FX rates for currency conversion. Cached ~6h; falls back gracefully.

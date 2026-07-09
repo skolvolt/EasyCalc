@@ -3,7 +3,7 @@ import { useProject, fmtMoney, pctIn, pctOut, toDisplayNum, fromDisplayNum, numF
 import { settingsOf, lmDerived, lmQty, roomTypeCounts } from '@shared/engine';
 import type { LmItem, LmKind } from '@shared/types';
 import NumInput from '../components/NumInput';
-import { downloadJson, pickList, listFilename } from '../listIo';
+import { downloadJson, listFilename } from '../listIo';
 
 /** Map workbook categories into the display sections requested. */
 const SECTIONS: { title: string; match: (i: LmItem) => boolean; defaultCategory: string; kind: LmKind }[] = [
@@ -22,6 +22,7 @@ const COMMISSIONING_CATEGORIES = ['Testing & commissioning', 'Programming'];
 export default function LabourMaterials() {
   const { state, update } = useProject();
   const [confirmClear, setConfirmClear] = useState(false);
+  const [importing, setImporting] = useState(false);
   if (!state) return null;
   const s = settingsOf(state);
   const counts = roomTypeCounts(state);
@@ -37,14 +38,34 @@ export default function LabourMaterials() {
     update((dr) => (dr.labour_materials = []));
   };
 
-  // Export the current L&M list, or import one (from a list export or a .qmproj).
+  // Export the current L&M list, or import one — from a spreadsheet, a .json
+  // export, or a previous .qmproj project.
   const exportList = () =>
     downloadJson(state.labour_materials, listFilename('LabourMaterials', state.details.project_name));
-  const importList = () =>
-    pickList('labour_materials', (arr) => {
-      if (!window.confirm(`Import ${arr.length} lines? This replaces the current Labour & Materials list.`)) return;
-      update((dr) => (dr.labour_materials = arr.map((it, i) => ({ ...it, row: it.row ?? i + 1, allocations: it.allocations ?? {} }))));
+  const importList = async () => {
+    const r = await fetch('/api/browse-file', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'list' }),
     });
+    const { path: file } = await r.json();
+    if (!file) return;
+    setImporting(true);
+    try {
+      const res = await fetch('/api/lm/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file }),
+      });
+      const data = await res.json();
+      if (!res.ok) { window.alert(data.error || 'Import failed'); return; }
+      const matched = data.mapped?.length ? ` (matched: ${data.mapped.join(', ')})` : '';
+      if (!window.confirm(`Import ${data.items.length} lines${matched}? This replaces the current Labour & Materials list.`)) return;
+      update((dr) => (dr.labour_materials = data.items.map((it: LmItem, i: number) => ({ ...it, row: it.row ?? i + 1, allocations: it.allocations ?? {} }))));
+    } finally {
+      setImporting(false);
+    }
+  };
 
   // Save the current L&M list as the default applied to new projects.
   const setAsDefault = async () => {
@@ -257,9 +278,11 @@ export default function LabourMaterials() {
         <button className={confirmClear ? 'btn danger' : 'btn secondary'} onClick={clearAll}>
           {confirmClear ? '⚠ Click again to clear ALL lines' : 'Clear all lines'}
         </button>
-        <button className="btn secondary" onClick={importList} title="Load a list from an export or a previous .qmproj project">
-          Import list…
-        </button>
+        {!isEmbedded && (
+          <button className="btn secondary" onClick={importList} disabled={importing} title="Load a list from a spreadsheet, an export, or a previous .qmproj project">
+            {importing ? 'Importing…' : 'Import list…'}
+          </button>
+        )}
         <button className="btn secondary" onClick={exportList} disabled={state.labour_materials.length === 0}>
           Export list
         </button>

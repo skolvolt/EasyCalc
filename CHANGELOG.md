@@ -2,6 +2,9 @@
 
 All notable changes to EasyCalc. Newest first.
 
+## 0.2.6
+- **Import any list type on both pages:** the Equipment Schedule and Labour & Materials **Import list** buttons now accept **spreadsheets** (`.xlsx`/`.csv`), **JSON exports**, and previous **`.qmproj` projects**.
+
 ## 0.2.5
 - **Import / Export lists:** Labour & Materials now has an **Import** button (load a list from an export **or a previous `.qmproj` project**) and an **Export** button. The Equipment Schedule gains an **Export** button too.
 

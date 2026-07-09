@@ -4,7 +4,7 @@
 
 ### Fast, local project costing & quoting for AV / integration work
 
-![version](https://img.shields.io/badge/version-0.2.5-1256a0)
+![version](https://img.shields.io/badge/version-0.2.6-1256a0)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-555)
 ![offline](https://img.shields.io/badge/runs-100%25%20offline-157a4a)
 ![license](https://img.shields.io/badge/license-proprietary-b3372c)
@@ -80,7 +80,7 @@ dependencies. Projects are saved as `.qmproj` files (plain JSON) in
 | `src/shared/` | Calculation engine + shared types (the pricing/rollup logic) |
 | `src/server/` | Local API: projects, imports, PDF/Excel export, updates |
 | `web/src/` | React UI — views, spreadsheet grid, dashboard, invoices |
-| `data/seed.json` | Starter template a new project begins from (sample data) |
+| `data/seed.json` | Starter template a new project begins from (ships empty — no pre-filled costs) |
 | `package-build/` | The packaged app payload + launchers shipped to users |
 | `installer/` | Windows installer script (Inno Setup) |
 | `mac-build/` | macOS `.dmg` build script |

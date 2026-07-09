@@ -262,12 +262,13 @@ export default function Schedule() {
     update((dr) => (dr.catalogue = []));
   };
 
-  // Import an equipment list from a spreadsheet (columns matched by header keyword).
+  // Import an equipment list — from a spreadsheet (columns matched by header
+  // keyword) OR a .json export / .qmproj project.
   const importList = async () => {
     const r = await fetch('/api/browse-file', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kind: 'pricelist' }),
+      body: JSON.stringify({ kind: 'list' }),
     });
     const { path: file } = await r.json();
     if (!file) return;
@@ -280,7 +281,8 @@ export default function Schedule() {
       });
       const data = await res.json();
       if (!res.ok) { window.alert(data.error || 'Import failed'); return; }
-      if (!window.confirm(`Import ${data.items.length} items (matched: ${data.mapped.join(', ')})?\nThis replaces the current equipment list.`)) return;
+      const matched = data.mapped?.length ? ` (matched: ${data.mapped.join(', ')})` : '';
+      if (!window.confirm(`Import ${data.items.length} items${matched}?\nThis replaces the current equipment list.`)) return;
       update((dr) => (dr.catalogue = data.items));
     } finally {
       setImporting(false);
