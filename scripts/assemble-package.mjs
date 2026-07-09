@@ -12,5 +12,7 @@ const pkgWeb = join(root, 'package-build', 'web');
 rmSync(pkgWeb, { recursive: true, force: true });
 cpSync(join(root, 'web', 'dist'), pkgWeb, { recursive: true });
 cpSync(join(root, 'data', 'seed.json'), join(root, 'package-build', 'data', 'seed.json'));
+// Ship the changelog with the app (installed as CHANGELOG.txt beside README.txt).
+cpSync(join(root, 'CHANGELOG.md'), join(root, 'package-build', 'CHANGELOG.txt'));
 
-console.log('Packaged web/ and data/seed.json refreshed.');
+console.log('Packaged web/, seed.json and CHANGELOG refreshed.');

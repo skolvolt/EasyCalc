@@ -17,6 +17,7 @@ export default function Home() {
   const [defaultDir, setDefaultDir] = useState('');
   const [newName, setNewName] = useState('');
   const [error, setError] = useState('');
+  const [version, setVersion] = useState('');
 
   const load = () =>
     fetch('/api/projects')
@@ -28,6 +29,7 @@ export default function Home() {
 
   useEffect(() => {
     load();
+    fetch('/api/version').then((r) => r.json()).then((d) => setVersion(d.version || '')).catch(() => {});
   }, []);
 
   const clearRecents = async () => {
@@ -161,6 +163,7 @@ export default function Home() {
         EasyCalc © 2026 The Roach House. All rights reserved. Unauthorised copying,
         modification, or distribution of this software is prohibited. See LICENSE.txt.
       </p>
+      {version && <p className="version-note">EasyCalc v{version}</p>}
       <ScrollTopButton />
       </div>
     </>

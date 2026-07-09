@@ -13,6 +13,9 @@ package-build/app/node_modules/
 package-build/app/server.mjs
 package-build/web/
 
+# Generated in the packaged payload
+package-build/CHANGELOG.txt
+
 # Compiled installers
 installer/Output/
 

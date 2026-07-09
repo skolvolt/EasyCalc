@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { userInfo, tmpdir } from 'node:os';
 import {
   listProjects, readProject, writeProject, createProject, clearRecents, dismissRecent, touchRecent,
-  readSettings, writeSettings, projectMtime, writeDefaultCatalogue, PROJECTS_DIR, type AppSettings,
+  readSettings, writeSettings, projectMtime, writeDefaultCatalogue, writeDefaultLm, PROJECTS_DIR, type AppSettings,
 } from './store';
 import { checkPricelist, type PricelistItemQuery } from './pricelist';
 import { isNewer } from './version';
@@ -14,7 +14,7 @@ import { importCatalogue } from './catalogueImport';
 import { renderDocument, type DocKind } from './invoiceHtml';
 import { renderWorkbook } from './invoiceXlsx';
 import { htmlToPdf } from './pdf';
-import type { ProjectState, CatalogueItem } from '../shared/types';
+import type { ProjectState, CatalogueItem, LmItem } from '../shared/types';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const WEB_DIST = process.env.QM_WEB_DIST || join(dir, '../../web/dist');
@@ -68,6 +68,14 @@ app.post('/api/catalogue/set-default', async (req, reply) => {
   if (!Array.isArray(catalogue)) return reply.code(400).send({ error: 'catalogue required' });
   writeDefaultCatalogue(catalogue);
   return { ok: true, count: catalogue.length };
+});
+
+// Save the current Labour & Materials list as the default applied to new projects.
+app.post('/api/lm/set-default', async (req, reply) => {
+  const { labour_materials } = (req.body ?? {}) as { labour_materials?: LmItem[] };
+  if (!Array.isArray(labour_materials)) return reply.code(400).send({ error: 'labour_materials required' });
+  writeDefaultLm(labour_materials);
+  return { ok: true, count: labour_materials.length };
 });
 
 // App-level settings (default PDF letterhead logo)

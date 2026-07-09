@@ -1,4 +1,5 @@
-import { useProject, fmtMoney, pctIn, pctOut, toDisplayNum, fromDisplayNum, numFmt, numParse } from '../state';
+import { useState } from 'react';
+import { useProject, fmtMoney, pctIn, pctOut, toDisplayNum, fromDisplayNum, numFmt, numParse, isEmbedded } from '../state';
 import { settingsOf, lmDerived, lmQty, roomTypeCounts } from '@shared/engine';
 import type { LmItem, LmKind } from '@shared/types';
 import NumInput from '../components/NumInput';
@@ -6,7 +7,7 @@ import NumInput from '../components/NumInput';
 /** Map workbook categories into the display sections requested. */
 const SECTIONS: { title: string; match: (i: LmItem) => boolean; defaultCategory: string; kind: LmKind }[] = [
   { title: 'Design & Engineering', match: (i) => /design/i.test(i.category ?? ''), defaultCategory: 'Design and Engineering', kind: 'labour' },
-  { title: 'Installation', match: (i) => /install/i.test(i.category ?? ''), defaultCategory: 'Installation ', kind: 'labour' },
+  { title: 'Installation', match: (i) => /install/i.test(i.category ?? ''), defaultCategory: 'Installation', kind: 'labour' },
   { title: 'Site Costs', match: (i) => /site/i.test(i.category ?? ''), defaultCategory: 'Site costs', kind: 'labour' },
   { title: 'Commissioning', match: (i) => /testing|commissioning|programming/i.test(i.category ?? ''), defaultCategory: 'Testing & commissioning', kind: 'labour' },
   { title: 'Project Management', match: (i) => /project management/i.test(i.category ?? ''), defaultCategory: 'Project management', kind: 'labour' },
@@ -19,9 +20,33 @@ const COMMISSIONING_CATEGORIES = ['Testing & commissioning', 'Programming'];
 
 export default function LabourMaterials() {
   const { state, update } = useProject();
+  const [confirmClear, setConfirmClear] = useState(false);
   if (!state) return null;
   const s = settingsOf(state);
   const counts = roomTypeCounts(state);
+
+  // Two-stage clear: first click arms, second click within 4s clears everything.
+  const clearAll = () => {
+    if (!confirmClear) {
+      setConfirmClear(true);
+      setTimeout(() => setConfirmClear(false), 4000);
+      return;
+    }
+    setConfirmClear(false);
+    update((dr) => (dr.labour_materials = []));
+  };
+
+  // Save the current L&M list as the default applied to new projects.
+  const setAsDefault = async () => {
+    if (!window.confirm('Save the current Labour & Materials list as the default for all NEW projects?')) return;
+    const res = await fetch('/api/lm/set-default', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ labour_materials: state.labour_materials }),
+    });
+    const data = await res.json();
+    if (res.ok) window.alert(`Saved ${data.count} lines as the default Labour & Materials list.`);
+  };
 
   const assigned = new Set<number>();
   const groups = SECTIONS.map((sec) => {
@@ -216,6 +241,17 @@ export default function LabourMaterials() {
       <h1>Labour & Materials</h1>
       <div className="subtitle">
         Cost, mark-up, sell and margin are all editable — change any one and the others follow.
+      </div>
+
+      <div className="toolbar">
+        <button className={confirmClear ? 'btn danger' : 'btn secondary'} onClick={clearAll}>
+          {confirmClear ? '⚠ Click again to clear ALL lines' : 'Clear all lines'}
+        </button>
+        {!isEmbedded && (
+          <button className="btn secondary" onClick={setAsDefault} title="Use this list as the default for new projects">
+            Set as default
+          </button>
+        )}
       </div>
 
       {groups.map((sec) => (

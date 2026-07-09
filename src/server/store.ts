@@ -4,7 +4,7 @@ import {
 import { join, dirname, resolve, basename, extname } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import type { ProjectState, CatalogueItem } from '../shared/types';
+import type { ProjectState, CatalogueItem, LmItem } from '../shared/types';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.QM_DATA_DIR || join(dir, '../../data');
@@ -16,6 +16,8 @@ export const PROJECTS_DIR =
 const RECENTS_PATH = join(PROJECTS_DIR, '.recents.json');
 /** User-set default equipment list applied to new projects (see set-as-default). */
 const DEFAULT_CATALOGUE_PATH = join(PROJECTS_DIR, '.default-catalogue.json');
+/** User-set default Labour & Materials list applied to new projects. */
+const DEFAULT_LM_PATH = join(PROJECTS_DIR, '.default-lm.json');
 
 export const PROJECT_EXT = '.qmproj';
 
@@ -35,6 +37,20 @@ export function writeDefaultCatalogue(items: CatalogueItem[]): void {
   writeFileSync(DEFAULT_CATALOGUE_PATH, JSON.stringify(items));
 }
 
+/** The saved default Labour & Materials list, or null to fall back to the seed. */
+export function readDefaultLm(): LmItem[] | null {
+  try {
+    const items = JSON.parse(readFileSync(DEFAULT_LM_PATH, 'utf8'));
+    return Array.isArray(items) ? items : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeDefaultLm(items: LmItem[]): void {
+  writeFileSync(DEFAULT_LM_PATH, JSON.stringify(items));
+}
+
 /**
  * The workbook seed carries 10 placeholder rooms (one pre-assigned per type
  * column — an Excel formula requirement). New projects start with a single
@@ -45,6 +61,8 @@ export function newProjectState(name?: string): ProjectState {
   seed.rooms = [{ level: '', area: '', room_no: '', types: [] }];
   const defaults = readDefaultCatalogue();
   if (defaults) seed.catalogue = defaults;
+  const lmDefaults = readDefaultLm();
+  if (lmDefaults) seed.labour_materials = lmDefaults;
   if (name) seed.details.project_name = name;
   return seed;
 }
