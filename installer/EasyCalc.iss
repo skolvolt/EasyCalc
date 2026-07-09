@@ -56,11 +56,13 @@ Name: "{group}\Uninstall EasyCalc"; Filename: "{uninstallexe}"
 Name: "{userdesktop}\EasyCalc";  Filename: "{app}\EasyCalc.vbs"; IconFilename: "{app}\EasyCalc.ico"; WorkingDir: "{app}"; Comment: "Launch EasyCalc"; Tasks: desktopicon
 
 [Run]
+; Launch via wscript.exe — Inno's default CreateProcess can't execute a .vbs
+; (fails with "code 193 / not a valid Win32 application").
 ; Interactive install: offer to launch (server + app window).
-Filename: "{app}\EasyCalc.vbs"; Description: "Launch EasyCalc now"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent
+Filename: "{sys}\wscript.exe"; Parameters: """{app}\EasyCalc.vbs"""; WorkingDir: "{app}"; Description: "Launch EasyCalc now"; Flags: nowait postinstall skipifsilent
 ; Silent self-update: relaunch the server ONLY (no new window). The still-open
 ; app window polls /api/version and reloads itself onto the new build.
-Filename: "{app}\EasyCalc.vbs"; Parameters: "/noopen"; WorkingDir: "{app}"; Flags: nowait; Check: IsSilent
+Filename: "{sys}\wscript.exe"; Parameters: """{app}\EasyCalc.vbs"" /noopen"; WorkingDir: "{app}"; Flags: nowait; Check: IsSilent
 
 ; NOTE: user projects live in Documents\Project Model and are intentionally
 ; never touched by install or uninstall.
