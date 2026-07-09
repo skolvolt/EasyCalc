@@ -3,6 +3,7 @@ import { useProject, fmtMoney, pctIn, pctOut, toDisplayNum, fromDisplayNum, numF
 import { settingsOf, lmDerived, lmQty, roomTypeCounts } from '@shared/engine';
 import type { LmItem, LmKind } from '@shared/types';
 import NumInput from '../components/NumInput';
+import { downloadJson, pickList, listFilename } from '../listIo';
 
 /** Map workbook categories into the display sections requested. */
 const SECTIONS: { title: string; match: (i: LmItem) => boolean; defaultCategory: string; kind: LmKind }[] = [
@@ -35,6 +36,15 @@ export default function LabourMaterials() {
     setConfirmClear(false);
     update((dr) => (dr.labour_materials = []));
   };
+
+  // Export the current L&M list, or import one (from a list export or a .qmproj).
+  const exportList = () =>
+    downloadJson(state.labour_materials, listFilename('LabourMaterials', state.details.project_name));
+  const importList = () =>
+    pickList('labour_materials', (arr) => {
+      if (!window.confirm(`Import ${arr.length} lines? This replaces the current Labour & Materials list.`)) return;
+      update((dr) => (dr.labour_materials = arr.map((it, i) => ({ ...it, row: it.row ?? i + 1, allocations: it.allocations ?? {} }))));
+    });
 
   // Save the current L&M list as the default applied to new projects.
   const setAsDefault = async () => {
@@ -246,6 +256,12 @@ export default function LabourMaterials() {
       <div className="toolbar">
         <button className={confirmClear ? 'btn danger' : 'btn secondary'} onClick={clearAll}>
           {confirmClear ? '⚠ Click again to clear ALL lines' : 'Clear all lines'}
+        </button>
+        <button className="btn secondary" onClick={importList} title="Load a list from an export or a previous .qmproj project">
+          Import list…
+        </button>
+        <button className="btn secondary" onClick={exportList} disabled={state.labour_materials.length === 0}>
+          Export list
         </button>
         {!isEmbedded && (
           <button className="btn secondary" onClick={setAsDefault} title="Use this list as the default for new projects">

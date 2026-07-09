@@ -5,6 +5,7 @@ import {
 import { settingsOf, itemSell, itemMargin, itemQty, roomTypeCounts } from '@shared/engine';
 import type { CatalogueItem } from '@shared/types';
 import NumInput from '../components/NumInput';
+import { downloadJson, listFilename } from '../listIo';
 
 interface PriceMatch {
   itemRow: number;
@@ -297,6 +298,9 @@ export default function Schedule() {
     if (res.ok) window.alert(`Saved ${data.count} items as the default equipment list.`);
   };
 
+  const exportList = () =>
+    downloadJson(state.catalogue, listFilename('Equipment', state.details.project_name));
+
   const syncFromTop = () => {
     if (bottomRef.current && topRef.current) bottomRef.current.scrollLeft = topRef.current.scrollLeft;
   };
@@ -321,6 +325,9 @@ export default function Schedule() {
             {importing ? 'Importing…' : 'Import list…'}
           </button>
         )}
+        <button className="btn secondary" onClick={exportList} disabled={state.catalogue.length === 0}>
+          Export list
+        </button>
         {!isEmbedded && (
           <button className="btn secondary" onClick={setAsDefault} title="Use this list as the default for new projects">
             Set as default

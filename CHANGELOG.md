@@ -2,6 +2,9 @@
 
 All notable changes to EasyCalc. Newest first.
 
+## 0.2.5
+- **Import / Export lists:** Labour & Materials now has an **Import** button (load a list from an export **or a previous `.qmproj` project**) and an **Export** button. The Equipment Schedule gains an **Export** button too.
+
 ## 0.2.4
 - **Labour & Materials:** added **Clear all** and **Set as default** buttons (matching the Equipment Schedule), so you can build your own default L&M list for new projects.
 - Fixed the Installation category on the Labour & Materials page.
