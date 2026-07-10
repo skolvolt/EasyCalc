@@ -2,6 +2,9 @@
 
 All notable changes to EasyCalc. Newest first.
 
+## 0.3.1
+- The **client-logo backdrop** in the sidebar now **auto-contrasts** with the logo — a mostly-dark logo gets a white backdrop, a mostly-light logo a dark one — for best visibility.
+
 ## 0.3.0
 - **Rooms — multiple system types per room:** assign several types with their own quantities to a single room (list view).
 - **Rooms — Matrix view:** a spreadsheet-style chart (rooms × system types) for quickly assigning quantities, with copy/paste and a per-type totals row.

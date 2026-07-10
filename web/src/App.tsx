@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useProject, isEmbedded } from './state';
 import ScrollTopButton from './components/ScrollTopButton';
 import UpdateDialog from './components/UpdateDialog';
+import ClientLogo from './components/ClientLogo';
 import Home from './views/Home';
 import Dashboard from './views/Dashboard';
 import Rooms from './views/Rooms';
@@ -408,15 +409,16 @@ export default function App() {
         <button title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={redo}>↷ Redo</button>
       </div>
       <aside className="sidebar">
-        {/* brand: client logo (display-only) beside the project title, on a neutral backdrop */}
+        {/* brand: client logo (display-only) beside the project title, on a backdrop
+            that auto-contrasts with the logo's brightness */}
         <div className="brand">
-          <div className="brand-neutral">
-            {clientLogo ? (
-              <img src={clientLogo} alt="Client logo" />
-            ) : (
+          {clientLogo ? (
+            <ClientLogo src={clientLogo} />
+          ) : (
+            <div className="brand-neutral">
               <span className="brand-placeholder">Insert client branding</span>
-            )}
-          </div>
+            </div>
+          )}
           <small className="brand-project">{state.details.project_name || 'Untitled project'}</small>
         </div>
         <nav>
