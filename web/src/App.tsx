@@ -50,6 +50,9 @@ function useUiZoom() {
   const [zoom, setZoom] = useState(() => Number(localStorage.getItem('qm-zoom')) || 1);
   useEffect(() => {
     (document.body.style as any).zoom = String(zoom);
+    // Expose the factor so viewport-pinned chrome (the sidebar) can divide it
+    // back out and stay exactly one window tall regardless of zoom.
+    document.body.style.setProperty('--ui-zoom', String(zoom));
     localStorage.setItem('qm-zoom', String(zoom));
   }, [zoom]);
   useEffect(() => {

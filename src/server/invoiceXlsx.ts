@@ -272,6 +272,34 @@ export function renderWorkbook(state: ProjectState, doc: DocKind): { title: stri
     b.blank();
     fillRoomInvoice(b, state, s, doc.typeIdx); // adds this room's own notes
     add(rt?.name ?? 'Room', b.build());
+  } else if (doc.kind === 'matrix') {
+    title = 'Room Matrix';
+    const types = state.room_types;
+    const d = state.details;
+    const b = sheet(3 + Math.max(types.length, 1));
+    b.title('Room Matrix');
+    for (const line of companyMeta(state)) b.meta(line);
+    // meta line WITHOUT any quote/expiry — a site working document.
+    const bits = [d.client_name || 'Client'];
+    if (d.client_site) bits.push(`Site: ${d.client_site}`);
+    bits.push(`Date: ${today()}`);
+    if (d.project_name) bits.push(String(d.project_name));
+    if (d.project_number) bits.push(`#${d.project_number}`);
+    b.meta(bits.join('    ·    '));
+    b.blank();
+    const numCols = new Set(types.map((_, i) => 3 + i));
+    b.head(['Level', 'Area', 'Room No.', ...types.map((t) => t.name)], numCols);
+    const counts = roomTypeCounts(state);
+    const qtyFor = (room: ProjectState['rooms'][number], idx: number) =>
+      room.types.find((t) => t.type_idx === idx)?.qty;
+    for (const room of state.rooms) {
+      b.data(
+        [room.level ?? '', room.area ?? '', room.room_no ?? '', ...types.map((t) => qtyFor(room, t.idx) ?? '')],
+        new Set(), numCols,
+      );
+    }
+    b.data(['Total rooms per type', '', '', ...types.map((t) => counts[t.idx] || '')], new Set(), numCols);
+    add('Room Matrix', b.build());
   } else {
     title = 'Total Project Invoice';
     const totalsB = heading(sheet(2), state, 'Total Project Invoice');

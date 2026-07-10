@@ -36,7 +36,11 @@ body {
 
 .sidebar {
   width: 210px; flex-shrink: 0; background: var(--sidebar); color: var(--sidebar-ink);
-  padding: 0 0 18px; position: sticky; top: 0; height: 100vh;
+  padding: 0 0 18px; position: sticky; top: 0;
+  /* Divide the body zoom back out so the sidebar is always exactly one window
+     tall — its bottom actions stay pinned in view, and the nav above scrolls
+     internally if the buttons would otherwise clash with them. */
+  height: calc(100vh / var(--ui-zoom, 1));
 }
 .sidebar .brand {
   padding: 0 0 12px; border-bottom: 1px solid #2a3a5c; margin-bottom: 12px;

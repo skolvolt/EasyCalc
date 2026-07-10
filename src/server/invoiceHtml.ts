@@ -17,12 +17,17 @@ const roomsList = (rooms: string[]) =>
 export type DocKind =
   | { kind: 'summary' }
   | { kind: 'total' }
-  | { kind: 'room'; typeIdx: number };
+  | { kind: 'room'; typeIdx: number }
+  | { kind: 'matrix' };
+
+/** quote = full quote (expiry, client). working = BoM/workbook (no client, no
+ *  expiry). matrix = site document: project + client details, no pricing/expiry. */
+type HeaderMode = 'quote' | 'working' | 'matrix';
 
 /** Quotes are valid for 30 days from the export date. */
 const QUOTE_VALIDITY_DAYS = 30;
 
-function header(title: string, state: ProjectState, minimal: boolean): string {
+function header(title: string, state: ProjectState, mode: HeaderMode): string {
   const d = state.details;
   const now = new Date();
   const expiry = new Date(now.getTime() + QUOTE_VALIDITY_DAYS * 24 * 3600 * 1000);
@@ -36,19 +41,22 @@ function header(title: string, state: ProjectState, minimal: boolean): string {
     ${d.company_website ? `<div>${esc(d.company_website)}</div>` : ''}
   </div>`;
 
-  const right = minimal
+  const right = mode === 'quote'
     ? `<div class="right"><h1>${esc(title)}</h1>
-        <div style="margin-top:4px">${esc(d.project_name)}</div>
-        <div>Date: ${fmtDate(now)}</div>
-        ${d.project_number ? `<div class="muted">#${esc(d.project_number)}</div>` : ''}</div>`
-    : `<div class="right"><h1>${esc(title)}</h1>
         <div>Date: ${fmtDate(now)}</div>
         ${d.quoted_by ? `<div>Quoted by: ${esc(d.quoted_by)}</div>` : ''}
         <div>Valid for ${QUOTE_VALIDITY_DAYS} days — expires ${fmtDate(expiry)}</div>
         <div style="margin-top:6px">${esc(d.project_name)}</div>
-        ${d.project_number ? `<div class="muted">#${esc(d.project_number)}</div>` : ''}</div>`;
+        ${d.project_number ? `<div class="muted">#${esc(d.project_number)}</div>` : ''}</div>`
+    : `<div class="right"><h1>${esc(title)}</h1>
+        <div style="margin-top:4px">${esc(d.project_name)}</div>
+        <div>Date: ${fmtDate(now)}</div>
+        ${d.project_number ? `<div class="muted">#${esc(d.project_number)}</div>` : ''}
+        ${mode === 'matrix' && d.quoted_by ? `<div>Prepared by: ${esc(d.quoted_by)}</div>` : ''}</div>`;
 
-  const clientBlock = minimal
+  // Client/site block is useful on the matrix (a site doc) but omitted from the
+  // internal working/BoM export. It carries no pricing.
+  const clientBlock = mode === 'working'
     ? ''
     : `<div class="bill-to">
         <span class="muted">Prepared for</span>
@@ -61,10 +69,12 @@ function header(title: string, state: ProjectState, minimal: boolean): string {
   return `<header>${letterhead}${right}</header>${clientBlock}`;
 }
 
-function shell(title: string, body: string, state: ProjectState, minimal = false): string {
-  const footer = minimal
-    ? 'Working document / bill of materials'
-    : `${esc(state.details.purpose) || 'Quote'} — prices exclude GST unless stated`;
+function shell(title: string, body: string, state: ProjectState, mode: HeaderMode = 'quote'): string {
+  const footer = mode === 'quote'
+    ? `${esc(state.details.purpose) || 'Quote'} — prices exclude GST unless stated`
+    : mode === 'matrix'
+      ? 'Room matrix — quantities per system type (working document, no pricing)'
+      : 'Working document / bill of materials';
   return `<!doctype html><html><head><meta charset="utf-8"><style>
     * { box-sizing: border-box; margin: 0; }
     body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #1a2433; padding: 40px 46px; }
@@ -103,7 +113,7 @@ function shell(title: string, body: string, state: ProjectState, minimal = false
     section.page { page-break-before: always; }
     section > h2 { font-size: 16px; color: #1256a0; margin-bottom: 2px; }
   </style></head><body>
-  ${header(title, state, minimal)}
+  ${header(title, state, mode)}
   ${body}
   <footer>${footer} — generated ${new Date().toLocaleString('en-AU')}.</footer>
   </body></html>`;
@@ -214,6 +224,24 @@ function roomInvoiceSection(state: ProjectState, s: Settings, typeIdx: number, p
     </table>`;
 }
 
+/** Rooms × system types quantity matrix — a pricing-free working chart for site. */
+function roomMatrixTable(state: ProjectState): string {
+  const counts = roomTypeCounts(state);
+  const types = state.room_types;
+  const qtyFor = (room: ProjectState['rooms'][number], idx: number) =>
+    room.types.find((t) => t.type_idx === idx)?.qty ?? 0;
+  const head = `<tr><th>Level</th><th>Area</th><th>Room No.</th>
+    ${types.map((t) => `<th class="num">${esc(t.name)}</th>`).join('')}</tr>`;
+  const rows = state.rooms
+    .map((room) =>
+      `<tr><td>${esc(room.level)}</td><td>${esc(room.area)}</td><td>${esc(room.room_no)}</td>
+        ${types.map((t) => { const q = qtyFor(room, t.idx); return `<td class="num">${q || ''}</td>`; }).join('')}</tr>`)
+    .join('');
+  const totals = `<tr class="totals"><td colspan="3">Total rooms per type</td>
+    ${types.map((t) => `<td class="num">${counts[t.idx] || ''}</td>`).join('')}</tr>`;
+  return `<table><thead>${head}</thead><tbody>${rows}${totals}</tbody></table>`;
+}
+
 export function renderDocument(
   state: ProjectState,
   doc: DocKind,
@@ -222,10 +250,15 @@ export function renderDocument(
   const s = settingsOf(state);
   const prices = opts.prices !== false;
 
+  if (doc.kind === 'matrix') {
+    const body = roomMatrixTable(state);
+    return { title: 'Room Matrix', html: shell('Room Matrix', body, state, 'matrix') };
+  }
+
   if (doc.kind === 'summary') {
     const title = prices ? 'Room Summary' : 'Room Schedule';
     const body = roomSummaryTable(state, s, prices);
-    return { title, html: shell(title, body, state, !prices) };
+    return { title, html: shell(title, body, state, prices ? 'quote' : 'working') };
   }
 
   if (doc.kind === 'room') {
@@ -234,7 +267,7 @@ export function renderDocument(
     const title = prices ? `Room Invoice — ${rt?.name ?? ''}` : `Bill of Materials — ${rt?.name ?? ''}`;
     // roomInvoiceSection now carries this room type's own notes + floorplan.
     const body = roomInvoiceSection(state, s, doc.typeIdx, prices);
-    return { title, html: shell(title, body, state, !prices) };
+    return { title, html: shell(title, body, state, prices ? 'quote' : 'working') };
   }
 
   // Total: a page per room type (each with its own notes), then project totals.
@@ -250,7 +283,7 @@ export function renderDocument(
     const end = `<section class="${roomPages ? 'page' : ''}">
       <h2>Room Schedule</h2>${roomSummaryTable(state, s, false)}</section>`;
     const body = roomPages + end;
-    return { title: 'Project Workbook', html: shell('Project Workbook', body, state, true) };
+    return { title: 'Project Workbook', html: shell('Project Workbook', body, state, 'working') };
   }
 
   const endTable = `<section class="${roomPages ? 'page' : ''}">

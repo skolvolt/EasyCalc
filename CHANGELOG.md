@@ -2,6 +2,13 @@
 
 All notable changes to EasyCalc. Newest first.
 
+## 0.3.0
+- **Rooms — multiple system types per room:** assign several types with their own quantities to a single room (list view).
+- **Rooms — Matrix view:** a spreadsheet-style chart (rooms × system types) for quickly assigning quantities, with copy/paste and a per-type totals row.
+- **Export the room matrix** to **PDF** (landscape) and **Excel** for on-site use — includes your letterhead and project/client details, with **no pricing or quote validity**.
+- **File dialogs** (open / save / import) now always open **in front** of the app instead of hiding behind it.
+- **UI zoom** no longer pushes the sidebar's bottom buttons off-screen — the sidebar stays one window tall and its nav scrolls if it runs out of room.
+
 ## 0.2.6
 - **Import any list type on both pages:** the Equipment Schedule and Labour & Materials **Import list** buttons now accept **spreadsheets** (`.xlsx`/`.csv`), **JSON exports**, and previous **`.qmproj` projects**.
 

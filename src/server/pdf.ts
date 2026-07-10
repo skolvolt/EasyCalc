@@ -20,13 +20,14 @@ async function getBrowser(): Promise<Browser> {
   );
 }
 
-export async function htmlToPdf(html: string): Promise<Buffer> {
+export async function htmlToPdf(html: string, landscape = false): Promise<Buffer> {
   const b = await getBrowser();
   const page = await b.newPage();
   try {
     await page.setContent(html, { waitUntil: 'load' });
     return await page.pdf({
       format: 'A4',
+      landscape, // wide docs (e.g. the room matrix) print landscape
       printBackground: true,
       margin: { top: '12mm', bottom: '14mm', left: '10mm', right: '10mm' },
     });

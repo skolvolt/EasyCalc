@@ -160,7 +160,7 @@ async function nativeOpenDialog(kind: 'project' | 'pricelist' | 'list'): Promise
     if (process.platform === 'win32') {
       const { stdout } = await run('powershell', [
         '-NoProfile', '-STA', '-Command',
-        `Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.OpenFileDialog; $f.Filter = '${winFilter}'; if ($f.ShowDialog() -eq 'OK') { $f.FileName }`,
+        `Add-Type -AssemblyName System.Windows.Forms; $o = New-Object System.Windows.Forms.Form; $o.TopMost = $true; $o.ShowInTaskbar = $false; $o.Opacity = 0; $o.Show(); $f = New-Object System.Windows.Forms.OpenFileDialog; $f.Filter = '${winFilter}'; $r = $f.ShowDialog($o); $o.Close(); if ($r -eq 'OK') { $f.FileName }`,
       ]);
       return stdout.trim() || null;
     }
@@ -188,9 +188,10 @@ async function nativeSaveDialog(suggested?: string): Promise<string | null> {
       const name = q(suggested ? basename(suggested) : 'New Project.qmproj');
       const initDir = q(suggested ? dirname(suggested) : PROJECTS_DIR);
       const ps =
-        `Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.SaveFileDialog; ` +
+        `Add-Type -AssemblyName System.Windows.Forms; $o = New-Object System.Windows.Forms.Form; $o.TopMost = $true; $o.ShowInTaskbar = $false; $o.Opacity = 0; $o.Show(); ` +
+        `$f = New-Object System.Windows.Forms.SaveFileDialog; ` +
         `$f.Filter = 'EasyCalc projects (*.qmproj)|*.qmproj|All files (*.*)|*.*'; $f.DefaultExt='qmproj'; $f.AddExtension=$true; ` +
-        `$f.FileName='${name}'; $f.InitialDirectory='${initDir}'; if ($f.ShowDialog() -eq 'OK') { $f.FileName }`;
+        `$f.FileName='${name}'; $f.InitialDirectory='${initDir}'; $r = $f.ShowDialog($o); $o.Close(); if ($r -eq 'OK') { $f.FileName }`;
       const { stdout } = await run('powershell', ['-NoProfile', '-STA', '-Command', ps]);
       return stdout.trim() || null;
     }
@@ -360,7 +361,9 @@ const parseDoc = (q: { doc?: string; typeIdx?: string }): DocKind =>
     ? { kind: 'room', typeIdx: Number(q.typeIdx ?? 0) }
     : q.doc === 'total'
       ? { kind: 'total' }
-      : { kind: 'summary' };
+      : q.doc === 'matrix'
+        ? { kind: 'matrix' }
+        : { kind: 'summary' };
 
 /**
  * Standardised export filename from the dashboard entries, e.g.
@@ -383,11 +386,13 @@ function standardFilename(state: ProjectState, doc: DocKind, prices: boolean, ex
   const date = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
   const rt = doc.kind === 'room' ? state.room_types.find((t) => t.idx === doc.typeIdx) : undefined;
   const docLabel =
-    doc.kind === 'summary'
-      ? (prices ? 'ROOMSUMMARY' : 'ROOMSCHEDULE')
-      : doc.kind === 'room'
-        ? (prices ? 'ROOMINVOICE' : 'BILLOFMATERIALS') + (rt ? '-' + seg(rt.name) : '')
-        : (prices ? 'TOTALINVOICE' : 'WORKBOOK');
+    doc.kind === 'matrix'
+      ? 'ROOMMATRIX'
+      : doc.kind === 'summary'
+        ? (prices ? 'ROOMSUMMARY' : 'ROOMSCHEDULE')
+        : doc.kind === 'room'
+          ? (prices ? 'ROOMINVOICE' : 'BILLOFMATERIALS') + (rt ? '-' + seg(rt.name) : '')
+          : (prices ? 'TOTALINVOICE' : 'WORKBOOK');
   return `${[jo, client, site, ver, initials, date, docLabel].join('_')}.${ext}`;
 }
 
@@ -404,7 +409,7 @@ app.get('/api/pdf', async (req, reply) => {
   const doc = parseDoc(q);
   const prices = q.prices !== 'off';
   const { html } = renderDocument(state, doc, { prices });
-  const pdf = await htmlToPdf(html);
+  const pdf = await htmlToPdf(html, doc.kind === 'matrix'); // matrix prints landscape
   return reply
     .header('Content-Type', 'application/pdf')
     .header('Content-Disposition', `attachment; filename="${standardFilename(state, doc, prices, 'pdf')}"`)
