@@ -2,6 +2,9 @@
 
 All notable changes to EasyCalc. Newest first.
 
+## 0.3.2
+- **Rooms page redesigned as a single clean matrix** — system types across the top (rename inline, drag **⠿** to reorder, **−** to remove, **+** to add), rooms down the side with a row-number gutter and a **COUNT** totals row. The old System Types panel and list view are gone; the matrix PDF/Excel export is retained.
+
 ## 0.3.1
 - The **client-logo backdrop** in the sidebar now **auto-contrasts** with the logo — a mostly-dark logo gets a white backdrop, a mostly-light logo a dark one — for best visibility.
 
