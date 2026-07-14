@@ -18,19 +18,21 @@ export type DocKind =
   | { kind: 'summary' }
   | { kind: 'total' }
   | { kind: 'room'; typeIdx: number }
-  | { kind: 'matrix' };
+  | { kind: 'matrix' }
+  | { kind: 'workbook' };
 
 /** quote = full quote (expiry, client). working = BoM/workbook (no client, no
  *  expiry). matrix = site document: project + client details, no pricing/expiry. */
 type HeaderMode = 'quote' | 'working' | 'matrix';
 
-/** Quotes are valid for 30 days from the export date. */
+/** Default validity when a project hasn't set its own quote expiry. */
 const QUOTE_VALIDITY_DAYS = 30;
 
 function header(title: string, state: ProjectState, mode: HeaderMode): string {
   const d = state.details;
+  const validDays = d.quote_expiry_days ?? QUOTE_VALIDITY_DAYS;
   const now = new Date();
-  const expiry = new Date(now.getTime() + QUOTE_VALIDITY_DAYS * 24 * 3600 * 1000);
+  const expiry = new Date(now.getTime() + validDays * 24 * 3600 * 1000);
   const fmtDate = (dt: Date) => dt.toLocaleDateString('en-AU');
 
   const letterhead = `<div class="letterhead">
@@ -45,7 +47,7 @@ function header(title: string, state: ProjectState, mode: HeaderMode): string {
     ? `<div class="right"><h1>${esc(title)}</h1>
         <div>Date: ${fmtDate(now)}</div>
         ${d.quoted_by ? `<div>Quoted by: ${esc(d.quoted_by)}</div>` : ''}
-        <div>Valid for ${QUOTE_VALIDITY_DAYS} days — expires ${fmtDate(expiry)}</div>
+        <div>Valid for ${validDays} days — expires ${fmtDate(expiry)}</div>
         <div style="margin-top:6px">${esc(d.project_name)}</div>
         ${d.project_number ? `<div class="muted">#${esc(d.project_number)}</div>` : ''}</div>`
     : `<div class="right"><h1>${esc(title)}</h1>
@@ -101,6 +103,13 @@ function shell(title: string, body: string, state: ProjectState, mode: HeaderMod
     th { background: #e8f0fa; font-weight: 600; }
     td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
     tr.totals td { font-weight: 700; background: #f4f7fb; }
+    /* room matrix: uniform cell size (fixed width + height, centred) */
+    table.matrix { table-layout: fixed; width: auto; }
+    table.matrix th, table.matrix td {
+      width: 70px; height: 30px; padding: 2px 4px;
+      text-align: center; vertical-align: middle;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
     footer { margin-top: 30px; font-size: 10px; color: #67788e; }
     thead { display: table-header-group; }
     /* keep whole tables (and their bodies / rows) from splitting across pages.
@@ -131,31 +140,35 @@ function roomNotesBlock(rt: ProjectState['room_types'][number] | undefined): str
   return notes + img;
 }
 
-/** Room Summary table. Without prices it becomes a room schedule (no money). */
-function roomSummaryTable(state: ProjectState, s: Settings, prices: boolean): string {
+/** Room Summary table. Without prices it becomes a room schedule (no money).
+ *  `hideRooms` drops the room-numbers column. */
+function roomSummaryTable(state: ProjectState, s: Settings, prices: boolean, hideRooms = false): string {
   const sum = roomSummary(state, s);
-  const rows = sum.rows.filter((r) => r.quantity > 0 || r.perRoom > 0);
+  const rows = sum.rows.filter((r) => r.quantity > 0 || r.perRoom !== 0);
+  const roomsTh = hideRooms ? '' : '<th>Rooms</th>';
+  const roomsTd = (typeIdx: number) => hideRooms ? '' : `<td>${roomsList(roomsOfType(state, typeIdx))}</td>`;
   if (!prices) {
     return `
       <table>
-        <thead><tr><th>Room Type</th><th>Rooms</th><th class="num">Quantity</th></tr></thead>
+        <thead><tr><th>Room Type</th>${roomsTh}<th class="num">Quantity</th></tr></thead>
         <tbody>
-          ${rows.map((r) => `<tr><td>${esc(r.name)}</td><td>${roomsList(roomsOfType(state, r.typeIdx))}</td>
+          ${rows.map((r) => `<tr><td>${esc(r.name)}</td>${roomsTd(r.typeIdx)}
             <td class="num">${r.quantity}</td></tr>`).join('')}
         </tbody>
       </table>`;
   }
+  const span = hideRooms ? 3 : 4; // label columns before the money column
   return `
     <table>
-      <thead><tr><th>Room Type</th><th>Rooms</th><th class="num">Quantity</th>
+      <thead><tr><th>Room Type</th>${roomsTh}<th class="num">Quantity</th>
         <th class="num">Cost per Room</th><th class="num">Total Cost</th></tr></thead>
       <tbody>
-        ${rows.map((r) => `<tr><td>${esc(r.name)}</td><td>${roomsList(roomsOfType(state, r.typeIdx))}</td>
+        ${rows.map((r) => `<tr><td>${esc(r.name)}</td>${roomsTd(r.typeIdx)}
           <td class="num">${r.quantity}</td>
           <td class="num">${fmtMoney(r.perRoom)}</td><td class="num">${fmtMoney(r.total)}</td></tr>`).join('')}
-        <tr class="totals"><td colspan="4">Total Invoice (Excluding GST)</td><td class="num">${fmtMoney(sum.exGst)}</td></tr>
-        <tr><td colspan="4">GST</td><td class="num">${fmtMoney(sum.gst)}</td></tr>
-        <tr class="totals"><td colspan="4">Total Invoice (Including GST)</td><td class="num">${fmtMoney(sum.incGst)}</td></tr>
+        <tr class="totals"><td colspan="${span}">Total Invoice (Excluding GST)</td><td class="num">${fmtMoney(sum.exGst)}</td></tr>
+        <tr><td colspan="${span}">GST</td><td class="num">${fmtMoney(sum.gst)}</td></tr>
+        <tr class="totals"><td colspan="${span}">Total Invoice (Including GST)</td><td class="num">${fmtMoney(sum.incGst)}</td></tr>
       </tbody>
     </table>`;
 }
@@ -163,7 +176,7 @@ function roomSummaryTable(state: ProjectState, s: Settings, prices: boolean): st
 /** Project-wide totals — equipment + each Labour & Materials category + GST. */
 function projectTotalsTable(state: ProjectState, s: Settings): string {
   const t = projectTotals(state, s);
-  const lmSubs = lmCategorySubtotals(state, s, null).filter((x) => x.amount > 0);
+  const lmSubs = lmCategorySubtotals(state, s, null).filter((x) => x.amount !== 0);
   const gst = t.revenue * s.gst;
   return `
     <table>
@@ -205,7 +218,7 @@ function roomInvoiceSection(state: ProjectState, s: Settings, typeIdx: number, p
       </table>`;
   }
 
-  const lmSubs = lmCategorySubtotals(state, s, typeIdx).filter((x) => x.amount > 0);
+  const lmSubs = lmCategorySubtotals(state, s, typeIdx).filter((x) => x.amount !== 0);
   const equipSubtotal = lines.reduce((a, l) => a + l.subtotal, 0);
   const exGst = equipSubtotal + lmSubs.reduce((a, l) => a + l.amount, 0);
   return `${roomNotesBlock(rt)}${heading}
@@ -230,8 +243,10 @@ function roomMatrixTable(state: ProjectState): string {
   const types = state.room_types;
   const qtyFor = (room: ProjectState['rooms'][number], idx: number) =>
     room.types.find((t) => t.type_idx === idx)?.qty ?? 0;
+  // Short type label (like the app matrix) so it fits a uniform-width cell.
+  const short = (name: string) => esc(name.replace(/SYSTEM TYPE/i, 'T'));
   const head = `<tr><th>Level</th><th>Area</th><th>Room No.</th>
-    ${types.map((t) => `<th class="num">${esc(t.name)}</th>`).join('')}</tr>`;
+    ${types.map((t) => `<th class="num" title="${esc(t.name)}">${short(t.name)}</th>`).join('')}</tr>`;
   const rows = state.rooms
     .map((room) =>
       `<tr><td>${esc(room.level)}</td><td>${esc(room.area)}</td><td>${esc(room.room_no)}</td>
@@ -239,25 +254,46 @@ function roomMatrixTable(state: ProjectState): string {
     .join('');
   const totals = `<tr class="totals"><td colspan="3">Total rooms per type</td>
     ${types.map((t) => `<td class="num">${counts[t.idx] || ''}</td>`).join('')}</tr>`;
-  return `<table><thead>${head}</thead><tbody>${rows}${totals}</tbody></table>`;
+  return `<table class="matrix"><thead>${head}</thead><tbody>${rows}${totals}</tbody></table>`;
 }
 
 export function renderDocument(
   state: ProjectState,
   doc: DocKind,
-  opts: { prices?: boolean } = {},
+  opts: { prices?: boolean; hideRooms?: boolean; matrix?: boolean } = {},
 ): { title: string; html: string } {
   const s = settingsOf(state);
   const prices = opts.prices !== false;
+  const hideRooms = !!opts.hideRooms;
+  const matrix = !!opts.matrix;
 
   if (doc.kind === 'matrix') {
     const body = roomMatrixTable(state);
     return { title: 'Room Matrix', html: shell('Room Matrix', body, state, 'matrix') };
   }
 
+  // Workbook: room summary first, then a page per room type (invoice with
+  // prices, or bill of materials without) with its own notes, then optionally
+  // the room-matrix chart at the very bottom.
+  if (doc.kind === 'workbook') {
+    const wbCounts = roomTypeCounts(state);
+    const wbTypes = state.room_types.filter((rt) => (wbCounts[rt.idx] ?? 0) > 0);
+    const summaryTitle = prices ? 'Room Summary' : 'Room Schedule';
+    const summaryPage = `<section><h2>${summaryTitle}</h2>${roomSummaryTable(state, s, prices, hideRooms)}</section>`;
+    const roomPages = wbTypes
+      .map((rt) => `<section class="page">${roomInvoiceSection(state, s, rt.idx, prices)}</section>`)
+      .join('');
+    const matrixPage = matrix
+      ? `<section class="page"><h2>Room Matrix</h2>${roomMatrixTable(state)}</section>`
+      : '';
+    const body = summaryPage + roomPages + matrixPage;
+    const title = prices ? 'Project Workbook' : 'Project Workbook — no prices';
+    return { title, html: shell(title, body, state, prices ? 'quote' : 'working') };
+  }
+
   if (doc.kind === 'summary') {
     const title = prices ? 'Room Summary' : 'Room Schedule';
-    const body = roomSummaryTable(state, s, prices);
+    const body = roomSummaryTable(state, s, prices, hideRooms);
     return { title, html: shell(title, body, state, prices ? 'quote' : 'working') };
   }
 
@@ -281,14 +317,14 @@ export function renderDocument(
   if (!prices) {
     // "Export Workbook" — collated bills of materials + a room schedule.
     const end = `<section class="${roomPages ? 'page' : ''}">
-      <h2>Room Schedule</h2>${roomSummaryTable(state, s, false)}</section>`;
+      <h2>Room Schedule</h2>${roomSummaryTable(state, s, false, hideRooms)}</section>`;
     const body = roomPages + end;
     return { title: 'Project Workbook', html: shell('Project Workbook', body, state, 'working') };
   }
 
   const endTable = `<section class="${roomPages ? 'page' : ''}">
     <h2>Project Totals</h2>${projectTotalsTable(state, s)}
-    <h2 style="margin-top:20px">Room Summary</h2>${roomSummaryTable(state, s, true)}</section>`;
+    <h2 style="margin-top:20px">Room Summary</h2>${roomSummaryTable(state, s, true, hideRooms)}</section>`;
   const body = roomPages + endTable;
   return { title: 'Total Project Invoice', html: shell('Total Project Invoice', body, state) };
 }

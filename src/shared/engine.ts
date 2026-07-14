@@ -357,11 +357,13 @@ export function procurement(state: ProjectState, s: Settings): ProcurementLine[]
     const qty = itemQty(item, counts);
     if (qty <= 0) continue;
     lines.push({
-      supplier: item.supplier ?? '(none)',
-      manufacturer: item.manufacturer ?? '',
+      // String() not just ?? — Excel imports numeric part numbers as numbers,
+      // and the sort below calls .localeCompare, which a number doesn't have.
+      supplier: String(item.supplier ?? '(none)'),
+      manufacturer: String(item.manufacturer ?? ''),
       qty,
-      partNumber: item.part_number ?? '',
-      description: item.description ?? '',
+      partNumber: String(item.part_number ?? ''),
+      description: String(item.description ?? ''),
       unitCost: item.cost ?? 0,
       unitSell: itemSell(item, s),
       totalCost: (item.cost ?? 0) * qty,

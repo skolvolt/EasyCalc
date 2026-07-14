@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useProject, isEmbedded } from './state';
+import { roomTypeCounts } from '@shared/engine';
+import { registerSelectRow } from './gridSelection';
 import ScrollTopButton from './components/ScrollTopButton';
 import UpdateDialog from './components/UpdateDialog';
 import ClientLogo from './components/ClientLogo';
+import Icon from './components/Icon';
 import Home from './views/Home';
 import Dashboard from './views/Dashboard';
 import Rooms from './views/Rooms';
@@ -22,19 +25,10 @@ const VIEWS = [
   ['notes', 'Notes'],
 ] as const;
 
-/** Open a native file dialog (on the server machine) and open the chosen project in a new window. */
-export async function openProjectInNewWindow() {
-  // Open the window synchronously on the click so it isn't blocked as a popup
-  // (the native file dialog + fetch below would otherwise drop the user gesture).
-  const w = window.open('about:blank', '_blank', 'width=1500,height=950');
-  try {
-    const r = await fetch('/api/browse-open', { method: 'POST' });
-    const { path } = await r.json();
-    if (path && w) w.location.href = `/?path=${encodeURIComponent(path)}`;
-    else if (w) w.close(); // cancelled
-  } catch {
-    w?.close();
-  }
+/** Open the chosen project in a new window. The /open page drives the native
+ *  dialog and navigates itself (or closes on cancel) — no blank placeholder. */
+export function openProjectInNewWindow() {
+  window.open(`${window.location.origin}/open`, '_blank', 'width=1500,height=950');
 }
 
 export function reportBugOrFeature() {
@@ -113,15 +107,51 @@ function useColumnResizing() {
       }
     };
     const onUp = () => { target = null; };
+    // Double-click a column's right edge to snap it back to its default width.
+    const onDbl = (e: MouseEvent) => {
+      const th = thAt(e);
+      if (th && nearEdge(th, e)) {
+        th.style.width = '';
+        th.style.minWidth = '';
+        e.preventDefault();
+      }
+    };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mousedown', onDown);
     document.addEventListener('mouseup', onUp);
+    document.addEventListener('dblclick', onDbl);
     return () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mousedown', onDown);
       document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('dblclick', onDbl);
       document.body.style.cursor = '';
     };
+  }, []);
+}
+
+/**
+ * Crosshair highlight: the row and column of the focused grid cell light up,
+ * so the active cell reads as the centre of a cross across a wide table.
+ */
+function useCrosshair() {
+  useEffect(() => {
+    const clear = () =>
+      document.querySelectorAll('.cross-row, .cross-col')
+        .forEach((e) => e.classList.remove('cross-row', 'cross-col'));
+    const onFocusIn = (e: FocusEvent) => {
+      clear();
+      const td = (e.target as HTMLElement | null)?.closest?.('td') as HTMLTableCellElement | null;
+      const table = td?.closest?.('table.grid') as HTMLTableElement | null;
+      if (!td || !table || !td.parentElement) return;
+      // no crosshair on the start-page recents list (row-hover highlight only)
+      if (table.classList.contains('home-recents')) return;
+      const col = td.cellIndex;
+      for (const cell of (td.parentElement as HTMLTableRowElement).cells) cell.classList.add('cross-row');
+      for (const tr of table.rows) tr.cells[col]?.classList.add('cross-col');
+    };
+    document.addEventListener('focusin', onFocusIn);
+    return () => { document.removeEventListener('focusin', onFocusIn); clear(); };
   }, []);
 }
 
@@ -143,8 +173,13 @@ function useSpreadsheetGrid() {
 
     const cellAt = (t: HTMLTableElement, r: number, c: number) =>
       t.rows[r]?.cells[c] as HTMLTableCellElement | undefined;
-    const inputAt = (t: HTMLTableElement, r: number, c: number) =>
-      (cellAt(t, r, c)?.querySelector('input') as HTMLInputElement | null) ?? null;
+    const inputAt = (t: HTMLTableElement, r: number, c: number) => {
+      const cell = cellAt(t, r, c);
+      // skip columns hidden via the Filters menu (inline display:none) so arrow
+      // nav / copy step over them instead of getting stuck
+      if (!cell || cell.style.display === 'none') return null;
+      return (cell.querySelector('input') as HTMLInputElement | null) ?? null;
+    };
 
     const locate = (el: EventTarget | null): Pos | null => {
       const td = (el as HTMLElement | null)?.closest?.('td') as HTMLTableCellElement | null;
@@ -276,6 +311,9 @@ function useSpreadsheetGrid() {
     };
 
     const onMouseDown = (e: MouseEvent) => {
+      // controls that act on the current selection (e.g. the cell-colour
+      // buttons) must not wipe it when clicked.
+      if ((e.target as HTMLElement).closest?.('.keep-selection')) return;
       const loc = locate(e.target);
       if (!loc) { clearSel(); return; }
       if (e.shiftKey) {
@@ -299,6 +337,16 @@ function useSpreadsheetGrid() {
     const onMouseUp = () => { dragAnchor = null; };
 
     const onKey = (e: KeyboardEvent) => {
+      // Escape cancels the current cell selection (range + focused cell).
+      if (e.key === 'Escape') {
+        const active = document.activeElement;
+        const inGrid = active instanceof HTMLInputElement && active.closest('table.grid');
+        if (selAnchor || selHead || inGrid) {
+          clearSel();
+          if (inGrid) (active as HTMLElement).blur();
+        }
+        return;
+      }
       // Delete/Backspace clears every cell in a multi-cell selection at once.
       if ((e.key === 'Delete' || e.key === 'Backspace') && isMultiSel()) {
         e.preventDefault();
@@ -334,6 +382,22 @@ function useSpreadsheetGrid() {
       if (nxt) { e.preventDefault(); clearSel(); inputAt(cur.table, nxt.r, nxt.c)?.focus(); }
     };
 
+    // clicking a row's ⠿ handle selects that whole row (all its input cells)
+    registerSelectRow((tr) => {
+      const t = tr.closest('table.grid') as HTMLTableElement | null;
+      if (!t) return;
+      const r = tr.rowIndex;
+      let c1 = -1, c2 = -1;
+      for (let c = 0; c < tr.cells.length; c++) {
+        if (tr.cells[c].querySelector('input')) { if (c1 < 0) c1 = c; c2 = c; }
+      }
+      if (c1 < 0) return;
+      selAnchor = { table: t, r, c: c1 };
+      selHead = { table: t, r, c: c2 };
+      drawHi();
+      inputAt(t, r, c1)?.focus();
+    });
+
     document.addEventListener('mousedown', onMouseDown, true);
     document.addEventListener('mouseover', onMouseOver);
     document.addEventListener('mouseup', onMouseUp);
@@ -342,6 +406,7 @@ function useSpreadsheetGrid() {
     document.addEventListener('cut', onCut);
     document.addEventListener('paste', onPaste);
     return () => {
+      registerSelectRow(null);
       document.removeEventListener('mousedown', onMouseDown, true);
       document.removeEventListener('mouseover', onMouseOver);
       document.removeEventListener('mouseup', onMouseUp);
@@ -362,9 +427,29 @@ export default function App() {
   } = useProject();
   const [view, setView] = useState<string>('dashboard');
   const [showUpdates, setShowUpdates] = useState(false);
+  const [orphanFilter, setOrphanFilter] = useState(false);
   useUiZoom();
   useColumnResizing();
   useSpreadsheetGrid();
+  useCrosshair();
+
+  // Orphan check: a value entered against a system type that no room uses shows
+  // red in the grids; while any exists, a pulsing warning sits top-right.
+  const counts = state ? roomTypeCounts(state) : [];
+  const orphanTypes = state
+    ? state.room_types.filter((rt) => (counts[rt.idx] ?? 0) === 0).map((rt) => rt.idx)
+    : [];
+  const orphanIn = (list: { allocations: Record<string, number> }[]) =>
+    orphanTypes.length > 0 && list.some((it) => orphanTypes.some((idx) => it.allocations[String(idx)] != null));
+  const orphanCat = !!state && orphanIn(state.catalogue);
+  const orphanLm = !!state && orphanIn(state.labour_materials);
+  const hasOrphanValue = orphanCat || orphanLm;
+
+  // Drop the "affected only" filter once the errors are all resolved, so the
+  // grids don't stay silently filtered with no banner to switch it off.
+  useEffect(() => {
+    if (!hasOrphanValue && orphanFilter) setOrphanFilter(false);
+  }, [hasOrphanValue, orphanFilter]);
 
   if (!state) return <Home />;
 
@@ -399,8 +484,21 @@ export default function App() {
 
   const clientLogo = state.details.client_logo;
 
+  const toggleOrphanFilter = () => setOrphanFilter((v) => !v);
+
+  // Only warn on the page that actually holds the error values.
+  const showOrphanBanner = (view === 'schedule' && orphanCat) || (view === 'lm' && orphanLm);
+
   return (
     <div className="layout">
+      {showOrphanBanner && (
+        <div className="orphan-warning" role="status">
+          <span className="ow-msg">⚠ Missing type assignment</span>
+          <button className="ow-btn" onClick={toggleOrphanFilter}>
+            {orphanFilter ? 'Show all' : 'Show affected rows'}
+          </button>
+        </div>
+      )}
       <div className="history-bar">
         {!isEmbedded && (
           <button title="Back to the start page" onClick={goToStartPage}>🏠 Start page</button>
@@ -439,50 +537,59 @@ export default function App() {
                 </span>
               </label>
             )}
+            {/* --- saving --- */}
             <button onClick={() => saveNow()}>
+              <Icon name="save" className="ico" />
               <span className="lbl">{isEmbedded ? 'Download changes' : 'Save now'}{dirty ? ' •' : ''}</span>
-              <span className="ico">💾</span>
             </button>
+            {!isEmbedded && (
+              <button onClick={doSaveAs}>
+                <Icon name="saveAs" className="ico" />
+                <span className="lbl">Save As…</span>
+              </button>
+            )}
+            {!isEmbedded && (
+              <button onClick={saveWebFile}>
+                <Icon name="web" className="ico" />
+                <span className="lbl">Save as web file…</span>
+              </button>
+            )}
+            {/* --- project --- */}
             {!isEmbedded && (
               <button
                 onClick={handleReload}
                 title="Reload this project from disk to pull in changes made by others"
               >
+                <Icon name="refresh" className="ico" />
                 <span className="lbl">Refresh changes{externalChange ? ' •' : ''}</span>
-                <span className="ico">🔄</span>
-              </button>
-            )}
-            {!isEmbedded && (
-              <button onClick={saveWebFile}>
-                <span className="lbl">Save as web file…</span><span className="ico">🌐</span>
               </button>
             )}
             {!isEmbedded && (
               <button onClick={openProjectInNewWindow}>
-                <span className="lbl">Open project…</span><span className="ico">📂</span>
-              </button>
-            )}
-            {!isEmbedded && (
-              <button onClick={doSaveAs}>
-                <span className="lbl">Save As…</span><span className="ico">🗃️</span>
+                <Icon name="folder" className="ico" />
+                <span className="lbl">Open project…</span>
               </button>
             )}
             {!isEmbedded && (
               <button onClick={() => { setView('dashboard'); closeProject(); }}>
-                <span className="lbl">Close project</span><span className="ico">✖️</span>
+                <Icon name="close" className="ico" />
+                <span className="lbl">Close project</span>
               </button>
             )}
+            {/* --- app --- */}
             <button onClick={toggleTheme}>
+              <Icon name={theme === 'dark' ? 'sun' : 'moon'} className="ico" />
               <span className="lbl">{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
-              <span className="ico">{theme === 'dark' ? '☀️' : '🌙'}</span>
             </button>
             {!isEmbedded && (
               <button onClick={() => setShowUpdates(true)}>
-                <span className="lbl">Check for updates</span><span className="ico">⬆️</span>
+                <Icon name="update" className="ico" />
+                <span className="lbl">Check for updates</span>
               </button>
             )}
             <button onClick={reportBugOrFeature}>
-              <span className="lbl">Report a bug / feature</span><span className="ico">✉️</span>
+              <Icon name="mail" className="ico" />
+              <span className="lbl">Report a bug / feature</span>
             </button>
           </div>
           <div className="save-state" title={path ?? ''}>
@@ -503,8 +610,8 @@ export default function App() {
         )}
         {view === 'dashboard' && <Dashboard />}
         {view === 'rooms' && <Rooms />}
-        {view === 'schedule' && <Schedule />}
-        {view === 'lm' && <LabourMaterials />}
+        {view === 'schedule' && <Schedule orphanFilter={orphanFilter} />}
+        {view === 'lm' && <LabourMaterials orphanFilter={orphanFilter} />}
         {view === 'invoices' && <Invoices />}
         {view === 'procurement' && <Procurement />}
         {view === 'notes' && <Notes />}

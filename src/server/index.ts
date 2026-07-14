@@ -140,6 +140,15 @@ app.put('/api/project', async (req, reply) => {
   }
 });
 
+// PowerShell prefix that builds $o = an owner bound to the current foreground
+// window (EasyCalc), so the dialog opens *in front* of it. A hidden background
+// process can't otherwise pull its dialog above the active window; owning the
+// dialog to that window guarantees the dialog sits over it.
+const PS_FG_OWNER =
+  `Add-Type -AssemblyName System.Windows.Forms; ` +
+  `Add-Type 'using System;using System.Windows.Forms;using System.Runtime.InteropServices;public class QmFg:IWin32Window{[DllImport("user32.dll")]static extern IntPtr GetForegroundWindow();public IntPtr Handle{get;set;}public QmFg(){this.Handle=GetForegroundWindow();}}' -ReferencedAssemblies System.Windows.Forms; ` +
+  `$o = New-Object QmFg; `;
+
 // Native "Open File" dialog on the machine the server runs on.
 // kind=project (.qmproj) | pricelist (.xlsx/.csv) | list (spreadsheet or json/qmproj)
 async function nativeOpenDialog(kind: 'project' | 'pricelist' | 'list'): Promise<string | null> {
@@ -160,7 +169,7 @@ async function nativeOpenDialog(kind: 'project' | 'pricelist' | 'list'): Promise
     if (process.platform === 'win32') {
       const { stdout } = await run('powershell', [
         '-NoProfile', '-STA', '-Command',
-        `Add-Type -AssemblyName System.Windows.Forms; $o = New-Object System.Windows.Forms.Form; $o.TopMost = $true; $o.ShowInTaskbar = $false; $o.Opacity = 0; $o.Show(); $f = New-Object System.Windows.Forms.OpenFileDialog; $f.Filter = '${winFilter}'; $r = $f.ShowDialog($o); $o.Close(); if ($r -eq 'OK') { $f.FileName }`,
+        `${PS_FG_OWNER}$f = New-Object System.Windows.Forms.OpenFileDialog; $f.Filter = '${winFilter}'; if ($f.ShowDialog($o) -eq 'OK') { $f.FileName }`,
       ]);
       return stdout.trim() || null;
     }
@@ -188,10 +197,9 @@ async function nativeSaveDialog(suggested?: string): Promise<string | null> {
       const name = q(suggested ? basename(suggested) : 'New Project.qmproj');
       const initDir = q(suggested ? dirname(suggested) : PROJECTS_DIR);
       const ps =
-        `Add-Type -AssemblyName System.Windows.Forms; $o = New-Object System.Windows.Forms.Form; $o.TopMost = $true; $o.ShowInTaskbar = $false; $o.Opacity = 0; $o.Show(); ` +
-        `$f = New-Object System.Windows.Forms.SaveFileDialog; ` +
+        `${PS_FG_OWNER}$f = New-Object System.Windows.Forms.SaveFileDialog; ` +
         `$f.Filter = 'EasyCalc projects (*.qmproj)|*.qmproj|All files (*.*)|*.*'; $f.DefaultExt='qmproj'; $f.AddExtension=$true; ` +
-        `$f.FileName='${name}'; $f.InitialDirectory='${initDir}'; $r = $f.ShowDialog($o); $o.Close(); if ($r -eq 'OK') { $f.FileName }`;
+        `$f.FileName='${name}'; $f.InitialDirectory='${initDir}'; if ($f.ShowDialog($o) -eq 'OK') { $f.FileName }`;
       const { stdout } = await run('powershell', ['-NoProfile', '-STA', '-Command', ps]);
       return stdout.trim() || null;
     }
@@ -214,6 +222,20 @@ app.post('/api/browse-save', async (req) => {
 });
 
 app.post('/api/browse-open', async () => ({ path: await nativeOpenDialog('project') }));
+
+// "Open in a new window" target. Opened synchronously on the click (a real URL,
+// so it's never a blank popup), it drives the native dialog itself and then
+// navigates to the chosen project — or closes itself if the dialog is cancelled.
+app.get('/open', async (_req, reply) =>
+  reply.type('text/html').send(
+    `<!doctype html><meta charset=utf-8><title>Opening…</title>` +
+    `<body style="font:15px system-ui;display:grid;place-items:center;height:100vh;margin:0;background:#141821;color:#cdd6e0">` +
+    `<div>Opening project…</div><script>` +
+    `fetch('/api/browse-open',{method:'POST'}).then(r=>r.json()).then(({path})=>{` +
+    `if(path)location.replace('/?path='+encodeURIComponent(path));else window.close();` +
+    `}).catch(()=>window.close());</script>`,
+  ),
+);
 app.post('/api/browse-file', async (req) => {
   const { kind } = (req.body ?? {}) as { kind?: 'project' | 'pricelist' | 'list' };
   const k = kind === 'pricelist' || kind === 'list' ? kind : 'project';
@@ -363,7 +385,9 @@ const parseDoc = (q: { doc?: string; typeIdx?: string }): DocKind =>
       ? { kind: 'total' }
       : q.doc === 'matrix'
         ? { kind: 'matrix' }
-        : { kind: 'summary' };
+        : q.doc === 'workbook'
+          ? { kind: 'workbook' }
+          : { kind: 'summary' };
 
 /**
  * Standardised export filename from the dashboard entries, e.g.
@@ -388,17 +412,19 @@ function standardFilename(state: ProjectState, doc: DocKind, prices: boolean, ex
   const docLabel =
     doc.kind === 'matrix'
       ? 'ROOMMATRIX'
-      : doc.kind === 'summary'
-        ? (prices ? 'ROOMSUMMARY' : 'ROOMSCHEDULE')
-        : doc.kind === 'room'
-          ? (prices ? 'ROOMINVOICE' : 'BILLOFMATERIALS') + (rt ? '-' + seg(rt.name) : '')
-          : (prices ? 'TOTALINVOICE' : 'WORKBOOK');
+      : doc.kind === 'workbook'
+        ? (prices ? 'WORKBOOK' : 'WORKBOOK-NOPRICES')
+        : doc.kind === 'summary'
+          ? (prices ? 'ROOMSUMMARY' : 'ROOMSCHEDULE')
+          : doc.kind === 'room'
+            ? (prices ? 'ROOMINVOICE' : 'BILLOFMATERIALS') + (rt ? '-' + seg(rt.name) : '')
+            : (prices ? 'TOTALINVOICE' : 'WORKBOOK');
   return `${[jo, client, site, ver, initials, date, docLabel].join('_')}.${ext}`;
 }
 
 // GET /api/pdf?path=...&doc=summary|total|room&typeIdx=N&prices=off
 app.get('/api/pdf', async (req, reply) => {
-  const q = req.query as { path?: string; doc?: string; typeIdx?: string; prices?: string };
+  const q = req.query as { path?: string; doc?: string; typeIdx?: string; prices?: string; roomnums?: string; matrix?: string };
   if (!q.path) return reply.code(400).send({ error: 'path required' });
   let state: ProjectState;
   try {
@@ -408,7 +434,7 @@ app.get('/api/pdf', async (req, reply) => {
   }
   const doc = parseDoc(q);
   const prices = q.prices !== 'off';
-  const { html } = renderDocument(state, doc, { prices });
+  const { html } = renderDocument(state, doc, { prices, hideRooms: q.roomnums === 'off', matrix: q.matrix === 'on' });
   const pdf = await htmlToPdf(html, doc.kind === 'matrix'); // matrix prints landscape
   return reply
     .header('Content-Type', 'application/pdf')
@@ -418,7 +444,7 @@ app.get('/api/pdf', async (req, reply) => {
 
 // GET /api/xlsx?path=...&doc=summary|total|room&typeIdx=N
 app.get('/api/xlsx', async (req, reply) => {
-  const q = req.query as { path?: string; doc?: string; typeIdx?: string; prices?: string };
+  const q = req.query as { path?: string; doc?: string; typeIdx?: string; prices?: string; roomnums?: string };
   if (!q.path) return reply.code(400).send({ error: 'path required' });
   let state: ProjectState;
   try {
@@ -427,7 +453,7 @@ app.get('/api/xlsx', async (req, reply) => {
     return reply.code(404).send({ error: 'could not read project file' });
   }
   const doc = parseDoc(q);
-  const { buffer } = renderWorkbook(state, doc);
+  const { buffer } = renderWorkbook(state, doc, { hideRooms: q.roomnums === 'off' });
   return reply
     .header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     .header('Content-Disposition', `attachment; filename="${standardFilename(state, doc, q.prices !== 'off', 'xlsx')}"`)

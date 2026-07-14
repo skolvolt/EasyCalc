@@ -160,15 +160,17 @@ table.grid input, table.grid select { color: inherit; }
 .sidebar-bottom { flex-shrink: 0; }
 .sidebar-actions { padding: 8px 0; border-top: 1px solid #2a3a5c; }
 .sidebar-actions button {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  display: flex; align-items: center; justify-content: flex-start; gap: 10px;
   width: 100%; text-align: left; padding: 7px 20px;
   background: none; border: none; color: var(--sidebar-ink); cursor: pointer;
   /* monospace, bolder so it stays legible at small size */
   font-family: 'Courier New', 'Courier', monospace; font-weight: 700; font-size: 13px;
 }
+/* uniform monochrome icon on the left of each button */
 .sidebar-actions button .ico {
-  flex-shrink: 0; font-size: 14px; width: 1.2em; text-align: center;
+  flex-shrink: 0; width: 16px; height: 16px; opacity: 0.85;
 }
+.sidebar-actions button:hover .ico { opacity: 1; }
 .sidebar-actions button:hover { background: #1d2e4f; color: #fff; }
 /* faint separators between the bottom-left action buttons */
 .sidebar-actions button + button,
@@ -179,7 +181,9 @@ table.grid input, table.grid select { color: inherit; }
 /* autosave toggle */
 .autosave-row {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 7px 20px; color: var(--sidebar-ink); font-size: 13px; cursor: pointer;
+  padding: 7px 20px; color: var(--sidebar-ink); cursor: pointer;
+  /* match the Courier action buttons below */
+  font-family: 'Courier New', 'Courier', monospace; font-weight: 700; font-size: 13px;
 }
 .switch { position: relative; display: inline-block; width: 34px; height: 18px; }
 .switch input { opacity: 0; width: 0; height: 0; }
@@ -212,8 +216,11 @@ table.grid input, table.grid select { color: inherit; }
 .version-note { margin-top: 4px; font-size: 11px; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
 
 /* ---- home screen ---- */
-/* animated matrix background sits behind the start-page content */
-.matrix-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+/* animated matrix background sits behind the start-page content. Its own
+   background tints the start page a touch darker than the (very bright) app
+   background; dark mode keeps the app's dark bg. */
+.matrix-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; background: #e6eaf1; }
+body.dark .matrix-bg { background: transparent; }
 .home { max-width: 860px; margin: 0 auto; padding: 48px 30px; position: relative; z-index: 1; }
 .home h1 { font-size: 26px; margin-bottom: 6px; }
 .home-title { margin-bottom: 10px; }
@@ -221,6 +228,12 @@ table.grid input, table.grid select { color: inherit; }
 .home .subtitle { color: var(--muted); margin-bottom: 24px; }
 .home code { background: var(--accent-soft); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
 .subtle-path { color: var(--muted); font-size: 12px; word-break: break-all; }
+/* recent-projects list: highlight the hovered row (crosshair tint) so you can
+   see which project you're about to open */
+table.grid.home-recents tbody tr { cursor: default; }
+table.grid.home-recents tbody tr:hover td {
+  background-image: linear-gradient(var(--cross-hi), var(--cross-hi));
+}
 
 /* ---- no-truncation wide tables (Equipment Schedule) ---- */
 /* scrollbar look comes from the global rules above so every bar matches */
@@ -237,6 +250,11 @@ table.grid.nowrap td.desc input { min-width: 420px; }
 .lm-section h2 { font-size: 15px; margin-bottom: 10px; color: var(--accent); }
 
 /* ---- pricelist panel ---- */
+.pricelist-note {
+  background: rgba(179, 55, 44, 0.08); color: var(--bad);
+  border: 1px solid var(--bad); border-radius: 6px;
+  padding: 8px 12px; margin-bottom: 12px; font-size: 12.5px; line-height: 1.4;
+}
 .diff-old { color: var(--bad); text-decoration: line-through; margin-right: 6px; }
 .diff-new { color: var(--good); font-weight: 600; }
 .browse-btn {
@@ -269,7 +287,7 @@ body.dark button.btn.minus:hover { background: rgba(229, 113, 95, 0.15); }
 .room-matrix td.mx-rownum, .room-matrix th.mx-rownum {
   width: 34px; min-width: 34px; text-align: center; color: var(--muted); font-size: 11px; padding: 2px;
 }
-.room-matrix th.mx-type { padding: 0; min-width: 108px; vertical-align: middle; }
+.room-matrix th.mx-type { padding: 0; min-width: 140px; vertical-align: middle; }
 .mx-type-head { display: flex; align-items: center; gap: 2px; padding: 3px 5px; }
 .mx-type-head input {
   border: none; background: transparent; font-weight: 600; color: inherit;
@@ -385,7 +403,9 @@ tr.sec-head td .caret { display: inline-block; width: 14px; }
 }
 
 /* ---- Schedule: freeze the header row (column titles) on vertical scroll ---- */
-.scroll-x.freeze-scroll { max-height: calc(100vh - 230px); overflow: auto; }
+/* Divide the body zoom back out (like the sidebar) so the table bottom stays
+   pinned to the viewport bottom at any zoom level. */
+.scroll-x.freeze-scroll { max-height: calc(100vh / var(--ui-zoom, 1) - 230px); overflow: auto; }
 table.grid.freeze thead th { position: sticky; top: 0; z-index: 3; }
 /* frozen-column header cells sit above the left-sticky body cells */
 table.grid.freeze thead th:nth-child(-n+4) { z-index: 6; }
@@ -467,6 +487,117 @@ table.grid td.cell-sel {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 
+/* ---- orphan allocation: red text when the system type has no rooms ---- */
+/* a value typed into a type column whose type isn't assigned to any room */
+table.grid td input.orphan-alloc { color: var(--bad); font-weight: 700; }
+/* the offending cell pulses the same red fade as the top-right warning, so the
+   user can spot exactly where the problem is (paused while editing that cell) */
+@keyframes orphan-cell-pulse {
+  0%, 100% { box-shadow: inset 0 0 0 100px rgba(210, 60, 50, 0); }
+  50%      { box-shadow: inset 0 0 0 100px rgba(210, 60, 50, 0.22); }
+}
+table.grid td:has(input.orphan-alloc) { animation: orphan-cell-pulse 1.8s ease-in-out infinite; }
+table.grid td:has(input.orphan-alloc:focus) { animation: none; }
+
+/* pulsing top-right warning while any orphan value exists (any page) */
+@keyframes orphan-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+.orphan-warning {
+  position: fixed; top: 52px; right: 18px; z-index: 60;
+  display: flex; align-items: center; gap: 8px;
+}
+.orphan-warning .ow-msg {
+  color: var(--bad); font-weight: 700; font-size: 13px;
+  background: rgba(179, 55, 44, 0.10); border: 1px solid var(--bad); border-radius: 6px;
+  padding: 6px 12px; animation: orphan-pulse 1.8s ease-in-out infinite;
+}
+.orphan-warning .ow-btn {
+  font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap;
+  color: var(--bad); background: var(--panel);
+  border: 1px solid var(--bad); border-radius: 6px; padding: 5px 10px;
+}
+.orphan-warning .ow-btn:hover { background: rgba(179, 55, 44, 0.12); }
+
+/* ---- crosshair: highlight the focused cell's whole row and column ---- */
+/* Tint only the image layer (!important) so it survives cells that set an
+   opaque `background:` shorthand (qtycell, frozen columns) — those set
+   background-image:none via the shorthand and would otherwise erase the tint,
+   which is exactly what broke it in dark mode. Frozen columns keep their
+   opaque background-color underneath. */
+table.grid td.cross-row, table.grid td.cross-col {
+  background-image: linear-gradient(var(--cross-hi), var(--cross-hi)) !important;
+}
+:root { --cross-hi: rgba(18, 86, 160, 0.10); }
+body.dark { --cross-hi: rgba(96, 165, 235, 0.26); }
+
+/* ---- uniform system-type columns (Schedule + L&M) ---- */
+/* all type columns share one width; drag to resize, double-click edge to reset */
+table.grid th.type-col { width: 64px; min-width: 64px; }
+
+/* ---- contingency column: only as wide as its heading ---- */
+table.grid th.cont-col, table.grid td.cont-col { width: 1%; white-space: nowrap; }
+
+/* ---- drag-to-reorder row handle (Schedule + L&M + Rooms) ---- */
+.drag-handle {
+  cursor: grab; user-select: none; color: var(--muted);
+  font-size: 14px; line-height: 1; padding: 5px 6px; flex: 0 0 auto; border-radius: 4px;
+}
+.drag-handle:hover { color: var(--accent); background: var(--accent-soft); }
+.drag-handle:active { cursor: grabbing; }
+th.dragcol, td.dragcell { width: 28px; min-width: 28px; text-align: center; padding: 0; }
+/* the handle fills its own cell so the whole cell is a grab target */
+td.dragcell .drag-handle { display: block; padding: 6px 0; }
+/* source row dims while a ghost copy of it is dragged on the cursor */
+tr.row-dragging td { opacity: 0.4; transition: opacity 0.1s; }
+
+/* ---- Schedule: cell-highlight colour buttons ---- */
+.color-tools { display: flex; align-items: center; gap: 6px; }
+.color-swatch {
+  width: 22px; height: 22px; padding: 0; cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, 0.25); border-radius: 4px;
+}
+.color-swatch:hover { transform: scale(1.12); box-shadow: 0 0 0 2px var(--accent-soft); }
+
+/* ---- Schedule: column show/hide "Filters" dropdown ---- */
+.col-filter { position: relative; display: inline-block; }
+.col-filter > summary { list-style: none; cursor: pointer; }
+.col-filter > summary::-webkit-details-marker { display: none; }
+.col-filter-menu {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 40;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.2); padding: 6px; min-width: 190px;
+  display: flex; flex-direction: column; gap: 1px;
+}
+.col-filter-title {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted); padding: 4px 8px 6px;
+}
+.col-filter-menu label {
+  display: flex; align-items: center; gap: 8px; padding: 4px 8px;
+  font-size: 13px; cursor: pointer; border-radius: 5px; white-space: nowrap;
+}
+.col-filter-menu label:hover { background: var(--accent-soft); }
+
+/* ---- Schedule: per-section "+ Add row" button in the section header ---- */
+.sec-head .sec-add {
+  margin-left: 12px; padding: 1px 9px; font-size: 12px; cursor: pointer; font-weight: 600;
+  background: rgba(255, 255, 255, 0.18); color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 4px;
+}
+.sec-head .sec-add:hover { background: rgba(255, 255, 255, 0.32); }
+
+/* ---- Rooms: duplicate-type "D" button ---- */
+.mx-type-head .mx-col-dup {
+  flex: 0 0 auto; padding: 0 6px; font-size: 12px; font-weight: 700; cursor: pointer;
+  background: transparent; color: var(--accent);
+  border: 1px solid var(--line); border-radius: 4px;
+}
+.mx-type-head .mx-col-dup:hover { border-color: var(--accent); background: var(--accent-soft); }
+
+/* ---- Procurement: per-supplier subtotal row ---- */
+table.grid tr.subtotal td { background: var(--accent-soft); font-weight: 600; }
+/* grand-total row tinted to match the header row */
+table.grid tr.head-row td { background: var(--accent-soft); font-weight: 700; }
+
 /* ---- invalid numeric input: flag the cell red ---- */
 input.num-error,
 table.grid input.num-error {
@@ -510,6 +641,11 @@ table.grid input.num-error {
 }
 .notes-editor:focus { border-color: var(--accent); }
 .notes-editor:empty::before { content: attr(data-placeholder); color: var(--muted); }
+
+/* fill mode (Notes page): editor fills the window and scrolls internally so its
+   bottom stays in view instead of growing past the window (zoom-aware). */
+.richtext-fill { display: flex; flex-direction: column; height: calc(100vh / var(--ui-zoom, 1) - 140px); }
+.richtext-fill .notes-editor { flex: 1 1 auto; min-height: 0; }
 .notes-editor h1 { font-size: 22px; margin: 10px 0 4px; }
 .notes-editor h2 { font-size: 18px; margin: 8px 0 4px; }
 .notes-editor h3 { font-size: 15px; margin: 8px 0 4px; }

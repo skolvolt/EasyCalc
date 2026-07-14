@@ -68,11 +68,11 @@ export default function MatrixBackground() {
           if (i === 0) {
             ctx.fillStyle = dark
               ? `rgba(74, 118, 174, ${0.42 * fade + 0.12})`   // brighter blue head
-              : `rgba(54, 101, 165, ${0.52 * fade + 0.17})`;  // blue head (light mode)
+              : `rgba(38, 72, 122, ${0.54 * fade + 0.18})`;   // darker blue head (light mode)
           } else {
             ctx.fillStyle = dark
               ? `rgba(103, 120, 142, ${0.26 * fade})`         // bluish-grey trail
-              : `rgba(86, 106, 135, ${0.35 * fade})`;         // bluish-grey trail (light mode)
+              : `rgba(62, 80, 104, ${0.38 * fade})`;          // darker bluish-grey trail (light mode)
           }
           ctx.fillText(charFor(row, c), x, y);
         }

@@ -1,11 +1,38 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  useProject, fmtMoney, pctIn, pctOut, toDisplayNum, fromDisplayNum, numFmt, numParse, isEmbedded,
+  useProject, fmtMoney, fmtPct, pctIn, pctOut, toDisplayNum, fromDisplayNum, numFmt, numParse, isEmbedded,
 } from '../state';
 import { settingsOf, itemSell, itemMargin, itemQty, roomTypeCounts } from '@shared/engine';
 import type { CatalogueItem } from '@shared/types';
 import NumInput from '../components/NumInput';
 import { downloadJson, listFilename } from '../listIo';
+import { startRowDrag, endRowDrag } from '../dragGhost';
+import { moveByDrop } from '../reorder';
+import { selectRow } from '../gridSelection';
+
+// Fixed (non-system-type) columns, in order — drives the Filters show/hide menu.
+const COLS: { key: string; title: string }[] = [
+  { key: 'desc', title: 'Description' },
+  { key: 'part', title: 'Part #' },
+  { key: 'brand', title: 'Brand' },
+  { key: 'supplier', title: 'Supplier' },
+  { key: 'cost', title: 'Cost' },
+  { key: 'markup', title: 'Mark-up %' },
+  { key: 'markupcont', title: 'Mark-up + Cont %' },
+  { key: 'sell', title: 'Sell' },
+  { key: 'margin', title: 'Margin %' },
+  { key: 'qty', title: 'Qty' },
+  { key: 'sumsell', title: 'Σ Sell' },
+];
+const FROZEN_KEYS = ['desc', 'part', 'brand', 'supplier'];
+
+// Tasteful highlight colours for the manual cell-colour buttons.
+const CELL_COLORS: { name: string; hex: string }[] = [
+  { name: 'Red', hex: '#d9534f' },
+  { name: 'Yellow', hex: '#e0a92e' },
+  { name: 'Green', hex: '#3fa46a' },
+  { name: 'Blue', hex: '#3f83d6' },
+];
 
 interface PriceMatch {
   itemRow: number;
@@ -14,6 +41,7 @@ interface PriceMatch {
   sheet: string;
   currentCost: number | null;
   newPrice: number;
+  priceHeader?: string;
 }
 
 function PricelistPanel() {
@@ -77,6 +105,12 @@ function PricelistPanel() {
         {open ? '▾' : '▸'} Supplier pricelists
       </h2>
       {open && (
+        <div className="pricelist-note">
+          ⚠ Prices are auto-matched to the <b>cheapest ex-GST</b> column found in the file. Always
+          cross-check each change before applying — the “Review” list shows which column each price came from.
+        </div>
+      )}
+      {open && (
         <table className="grid">
           <thead>
             <tr>
@@ -127,7 +161,8 @@ function PricelistPanel() {
                         <ul style={{ margin: '6px 0 0 18px' }}>
                           {res.map((m) => (
                             <li key={m.itemRow}>
-                              {m.matchedText} <em>({m.matchedOn.replace('_', ' ')}, {m.sheet})</em>:{' '}
+                              {m.matchedText}{' '}
+                              <em>({m.matchedOn.replace('_', ' ')}, {m.sheet}{m.priceHeader ? ` → “${m.priceHeader}”` : ''})</em>:{' '}
                               <span className="diff-old">{fmtMoney(m.currentCost ?? 0)}</span>
                               <span className="diff-new">{fmtMoney(m.newPrice)}</span>
                             </li>
@@ -146,7 +181,7 @@ function PricelistPanel() {
   );
 }
 
-export default function Schedule() {
+export default function Schedule({ orphanFilter = false }: { orphanFilter?: boolean }) {
   const { state, update } = useProject();
   const [section, setSection] = useState<string>('All');
   const [search, setSearch] = useState('');
@@ -156,8 +191,34 @@ export default function Schedule() {
   const topRef = useRef<HTMLDivElement>(null);
   const [scrollW, setScrollW] = useState(0);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [confirmClearColors, setConfirmClearColors] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
   if (!state) return null;
+
+  // Column show/hide (Filters menu). Hidden columns use display:none so cell
+  // indices stay stable (cell colours / crosshair rely on them); the horizontal
+  // freeze is only kept while all four identity columns are visible.
+  const hiddenCol = (k: string) => hiddenCols.has(k);
+  const cs = (k: string): React.CSSProperties | undefined => (hiddenCol(k) ? { display: 'none' } : undefined);
+  const freezeOn = !FROZEN_KEYS.some(hiddenCol);
+  const toggleCol = (k: string) =>
+    setHiddenCols((prev) => {
+      const n = new Set(prev);
+      n.has(k) ? n.delete(k) : n.add(k);
+      return n;
+    });
+
+  // close the Filters dropdown when clicking anywhere outside it
+  const filterRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      const el = filterRef.current;
+      if (el?.open && !el.contains(e.target as Node)) el.open = false;
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, []);
   const s = settingsOf(state);
   const counts = roomTypeCounts(state);
   const nCols = 11 + state.room_types.length;
@@ -167,12 +228,22 @@ export default function Schedule() {
     [state.catalogue],
   );
 
+  // types no room uses — a value in one of these columns is the "error"
+  const orphanTypeIdx = state.room_types.filter((rt) => (counts[rt.idx] ?? 0) === 0).map((rt) => rt.idx);
+  const isAffected = (item: CatalogueItem) =>
+    orphanTypeIdx.some((idx) => item.allocations[String(idx)] != null);
+
   const q = search.toLowerCase();
   const visible = state.catalogue
     .map((item, i) => [item, i] as [CatalogueItem, number])
     .filter(([item]) => {
+      // "show affected rows" — only the error rows, ignoring the other filters
+      if (orphanFilter) return isAffected(item);
       if (section !== 'All' && item.section !== section) return false;
-      if (!showEmpty && itemQty(item, counts) === 0) return false;
+      // "show unused" off hides only truly-unused rows: no qty AND not assigned
+      // to any system type (an assigned-but-unpriced row still shows).
+      if (!showEmpty && itemQty(item, counts) === 0 && Object.keys(item.allocations).length === 0)
+        return false;
       if (
         q &&
         ![item.description, item.part_number, item.manufacturer, item.supplier, item.subcategory]
@@ -193,6 +264,76 @@ export default function Schedule() {
   }
   // Custom items always sit at the top of the list
   grouped.sort((a, b) => (a.section === 'Custom' ? -1 : b.section === 'Custom' ? 1 : 0));
+
+  // ----- manual cell highlighting -----
+  // Keys ("rowId:colIndex") of the currently selected schedule cells: the
+  // spreadsheet range (.cell-sel) if any, otherwise the single focused cell.
+  const selectedCellKeys = (): string[] => {
+    const root = bottomRef.current;
+    if (!root) return [];
+    let cells = Array.from(root.querySelectorAll<HTMLTableCellElement>('td.cell-sel'));
+    if (cells.length === 0) {
+      const td = (document.activeElement as HTMLElement | null)?.closest?.('td') as HTMLTableCellElement | null;
+      if (td && root.contains(td)) cells = [td];
+    }
+    const keys: string[] = [];
+    for (const td of cells) {
+      const rowId = (td.parentElement as HTMLElement | null)?.dataset?.row;
+      if (rowId != null) keys.push(`${rowId}:${td.cellIndex}`);
+    }
+    return keys;
+  };
+
+  const applyColor = (hex: string) => {
+    const keys = selectedCellKeys();
+    if (!keys.length) return;
+    update((dr) => {
+      dr.cell_colors ??= {};
+      for (const k of keys) dr.cell_colors[k] = hex;
+    });
+  };
+
+  const clearColor = () => {
+    const keys = selectedCellKeys();
+    if (!keys.length || !state.cell_colors) return;
+    update((dr) => {
+      if (dr.cell_colors) for (const k of keys) delete dr.cell_colors[k];
+    });
+  };
+
+  // Two-stage "Clear all": first click arms ("Sure?"), second clears.
+  const clearAllColors = () => {
+    if (!confirmClearColors) {
+      setConfirmClearColors(true);
+      setTimeout(() => setConfirmClearColors(false), 4000);
+      return;
+    }
+    setConfirmClearColors(false);
+    update((dr) => { dr.cell_colors = {}; });
+  };
+
+  // Paint the saved highlight colours onto their cells after each render.
+  useEffect(() => {
+    const root = bottomRef.current;
+    if (!root) return;
+    root.querySelectorAll<HTMLElement>('td.uc-colored').forEach((td) => {
+      td.classList.remove('uc-colored');
+      td.style.outline = '';
+      td.style.outlineOffset = '';
+    });
+    const colors = state.cell_colors;
+    if (!colors) return;
+    for (const [key, hex] of Object.entries(colors)) {
+      const [rowId, colStr] = key.split(':');
+      const tr = root.querySelector<HTMLTableRowElement>(`tr[data-row="${CSS.escape(rowId)}"]`);
+      const td = tr?.cells[Number(colStr)] as HTMLElement | undefined;
+      if (td) {
+        td.style.outline = `2px solid ${hex}`;
+        td.style.outlineOffset = '-2px';
+        td.classList.add('uc-colored');
+      }
+    }
+  });
 
   // keep the top scrollbar spacer sized to the table
   useEffect(() => {
@@ -218,23 +359,32 @@ export default function Schedule() {
       else dr.catalogue[i].allocations[String(typeIdx)] = n;
     });
 
-  // margin entered as a fraction (pctOut already divided by 100)
-  const setMarginFrac = (i: number, frac: number | null) =>
+  // Drag-to-reorder: grab the ⠿ handle, drop on another row in the SAME section.
+  const dragRow = useRef<number | null>(null);
+  const reorderTo = (targetI: number) => {
+    const from = dragRow.current;
+    dragRow.current = null;
+    if (from == null || from === targetI) return;
     update((dr) => {
-      const item = dr.catalogue[i];
-      const margin = frac ?? 0;
-      if (margin >= 1 || !item.cost) return;
-      const sell = margin === 0 ? item.cost : item.cost / (1 - margin);
-      item.markup = sell / item.cost - 1 - s.equipmentContingency;
+      // reorder only within the same section
+      if ((dr.catalogue[from]?.section || '') !== (dr.catalogue[targetI]?.section || '')) return;
+      moveByDrop(dr.catalogue, from, targetI);
     });
+  };
 
-  // sell already converted to base currency by NumInput's parse -> back-solve markup
-  const setSellBase = (i: number, sellBase: number | null) =>
+  // Add a blank row at the TOP of one section (the section's own "+ Add row").
+  const addRowToSection = (sectionName: string) =>
     update((dr) => {
-      const item = dr.catalogue[i];
-      if (!item.cost) return;
-      const base = sellBase ?? item.cost;
-      item.markup = base / item.cost - 1 - s.equipmentContingency;
+      const maxRow = Math.max(0, ...dr.catalogue.map((x) => x.row));
+      const at = dr.catalogue.findIndex((x) => (x.section || 'Uncategorised') === sectionName);
+      dr.catalogue.splice(at < 0 ? 0 : at, 0, {
+        row: maxRow + 1,
+        section: sectionName === 'Uncategorised' ? '' : sectionName,
+        subcategory: '',
+        description: '', part_number: '', power_load: null, dimensions: null, warranty: null,
+        manufacturer: '', supplier: '', measurement: 'per item', cost: null, markup: 0.25,
+        allocations: {},
+      });
     });
 
   const addCustomItems = (n: number) =>
@@ -314,8 +464,8 @@ export default function Schedule() {
     <>
       <h1>Equipment Schedule</h1>
       <div className="subtitle">
-        {state.catalogue.length} catalogue items. Mark-up, sell and margin are all editable and
-        back-solve each other. First four columns stay put while scrolling right.
+        {state.catalogue.length} catalogue items. Edit Cost and Mark-up; Sell, Margin and Qty are
+        calculated. Drag <b>⠿</b> to reorder within a section. First four columns stay put while scrolling.
       </div>
 
       <div className="toolbar">
@@ -354,10 +504,53 @@ export default function Schedule() {
             <input type="checkbox" checked={showEmpty} onChange={(e) => setShowEmpty(e.target.checked)} />{' '}
             show unused
           </label>
+          <details className="col-filter" ref={filterRef}>
+            <summary className="btn secondary">Filters ▾</summary>
+            <div className="col-filter-menu">
+              <div className="col-filter-title">Show columns</div>
+              {COLS.map((c) => (
+                <label key={c.key}>
+                  <input type="checkbox" checked={!hiddenCol(c.key)} onChange={() => toggleCol(c.key)} />
+                  {c.title}
+                </label>
+              ))}
+            </div>
+          </details>
           <button className="btn secondary" onClick={() => addCustomItems(1)}>+ Add custom item</button>
           <button className="btn secondary" onClick={() => addCustomItems(5)} title="Add 5 custom items">+5</button>
           <button className="btn secondary" onClick={() => addCustomItems(10)} title="Add 10 custom items">+10</button>
           <span style={{ color: 'var(--muted)', fontSize: 12 }}>{visible.length} rows</span>
+
+          {/* cell-highlight colours — act on the current selection, so they must
+              not clear it (.keep-selection) and keep focus on it (preventDefault) */}
+          <div className="color-tools keep-selection" style={{ marginLeft: 'auto' }}>
+            {CELL_COLORS.map((c) => (
+              <button
+                key={c.hex}
+                className="color-swatch"
+                style={{ background: c.hex }}
+                title={`Highlight selected cells ${c.name.toLowerCase()}`}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => applyColor(c.hex)}
+              />
+            ))}
+            <button
+              className="btn secondary"
+              title="Remove highlight from the selected cells"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={clearColor}
+            >
+              Clear
+            </button>
+            <button
+              className={confirmClearColors ? 'btn danger' : 'btn secondary'}
+              title="Remove every cell highlight"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={clearAllColors}
+            >
+              {confirmClearColors ? 'Sure?' : 'Clear all'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -367,25 +560,25 @@ export default function Schedule() {
       </div>
 
       <div className="panel scroll-x freeze-scroll" ref={bottomRef} onScroll={syncFromBottom} style={{ paddingTop: 0 }}>
-        <table className="grid nowrap freeze">
+        <table className={'grid nowrap' + (freezeOn ? ' freeze' : '')}>
           <thead>
             <tr>
-              <th>Description</th>
-              <th>Part #</th>
-              <th>Brand</th>
-              <th>Supplier</th>
-              <th className="num">Cost</th>
-              <th className="num">Mark-up %</th>
-              <th className="num">Sell</th>
-              <th className="num">Margin %</th>
-              <th className="num">Qty</th>
-              <th className="num">Σ Sell</th>
+              <th style={cs('desc')}>Description</th>
+              <th style={cs('part')}>Part #</th>
+              <th style={cs('brand')}>Brand</th>
+              <th style={cs('supplier')}>Supplier</th>
+              <th className="num" style={cs('cost')}>Cost</th>
+              <th className="num" style={cs('markup')}>Mark-up %</th>
+              <th className="num" style={cs('markupcont')} title="Mark-up plus this category's contingency">Mark-up + Cont %</th>
+              <th className="num" style={cs('sell')}>Sell</th>
+              <th className="num" style={cs('margin')}>Margin %</th>
+              <th className="num" style={cs('qty')}>Qty</th>
+              <th className="num" style={cs('sumsell')}>Σ Sell</th>
               {state.room_types.map((rt) => (
-                <th key={rt.idx} className="num" title={rt.name}>
+                <th key={rt.idx} className="num type-col" title={rt.name}>
                   {rt.name.replace('SYSTEM TYPE', 'T')}
                 </th>
               ))}
-              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -396,12 +589,20 @@ export default function Schedule() {
                   <td colSpan={nCols}>
                     <span className="caret">{isCollapsed ? '▸' : '▾'}</span>
                     {g.section} <span style={{ opacity: 0.8, fontWeight: 400 }}>({g.rows.length})</span>
+                    <button
+                      className="sec-add"
+                      title={`Add a new row to ${g.section}`}
+                      onClick={(e) => { e.stopPropagation(); addRowToSection(g.section); }}
+                    >
+                      + Add row
+                    </button>
                   </td>
                 </tr>,
               ];
               if (isCollapsed) return out;
               let lastSub: string | null = null;
-              for (const [item, i] of g.rows) {
+              for (let pos = 0; pos < g.rows.length; pos++) {
+                const [item, i] = g.rows[pos];
                 if (item.subcategory && item.subcategory !== lastSub) {
                   lastSub = item.subcategory;
                   out.push(
@@ -414,48 +615,47 @@ export default function Schedule() {
                 const sell = itemSell(item, s);
                 const isCustom = item.section === 'Custom';
                 out.push(
-                  <tr key={i}>
-                    <td className="desc">
-                      {isCustom ? (
-                        <div className="desc-with-del">
+                  <tr key={i} data-row={item.row} onDragOver={(e) => e.preventDefault()} onDrop={() => reorderTo(i)}>
+                    <td className="desc" style={cs('desc')}>
+                      <div className="desc-with-del">
+                        <span
+                          className="drag-handle"
+                          draggable
+                          title="Drag to reorder — click to select the whole row"
+                          onDragStart={(e) => { dragRow.current = i; startRowDrag(e); }}
+                          onDragEnd={(e) => { dragRow.current = null; endRowDrag(e); }}
+                          onClick={(e) => selectRow((e.currentTarget as HTMLElement).closest('tr')!)}
+                        >
+                          ⠿
+                        </span>
+                        {isCustom && (
                           <button
                             className="btn minus"
-                            title="Remove this custom line"
+                            title="Remove this line"
                             onClick={() => update((dr) => dr.catalogue.splice(i, 1))}
                           >
                             −
                           </button>
-                          <input
-                            value={item.description ?? ''}
-                            onChange={(e) => update((dr) => (dr.catalogue[i].description = e.target.value))}
-                          />
-                        </div>
-                      ) : (
+                        )}
                         <input
                           value={item.description ?? ''}
                           onChange={(e) => update((dr) => (dr.catalogue[i].description = e.target.value))}
                         />
-                      )}
+                      </div>
                     </td>
-                    <td>
-                      {isCustom ? (
-                        <input value={item.part_number ?? ''}
-                          onChange={(e) => update((dr) => (dr.catalogue[i].part_number = e.target.value))} />
-                      ) : item.part_number}
+                    <td style={cs('part')}>
+                      <input value={item.part_number ?? ''}
+                        onChange={(e) => update((dr) => (dr.catalogue[i].part_number = e.target.value))} />
                     </td>
-                    <td>
-                      {isCustom ? (
-                        <input value={item.manufacturer ?? ''}
-                          onChange={(e) => update((dr) => (dr.catalogue[i].manufacturer = e.target.value))} />
-                      ) : item.manufacturer}
+                    <td style={cs('brand')}>
+                      <input value={item.manufacturer ?? ''}
+                        onChange={(e) => update((dr) => (dr.catalogue[i].manufacturer = e.target.value))} />
                     </td>
-                    <td>
-                      {isCustom ? (
-                        <input value={item.supplier ?? ''}
-                          onChange={(e) => update((dr) => (dr.catalogue[i].supplier = e.target.value))} />
-                      ) : item.supplier}
+                    <td style={cs('supplier')}>
+                      <input value={item.supplier ?? ''}
+                        onChange={(e) => update((dr) => (dr.catalogue[i].supplier = e.target.value))} />
                     </td>
-                    <td className="num">
+                    <td className="num" style={cs('cost')}>
                       <NumInput
                         value={item.cost}
                         format={toDisplayNum}
@@ -464,51 +664,35 @@ export default function Schedule() {
                         histKey={`cat:${item.row}:cost`}
                       />
                     </td>
-                    <td className="num">
+                    <td className="num" style={cs('markup')}>
                       <NumInput
                         value={item.markup}
                         format={pctIn}
                         parse={pctOut}
+                        integer
                         onValue={(n) => update((dr) => (dr.catalogue[i].markup = n))}
                         histKey={`cat:${item.row}:markup`}
                       />
                     </td>
-                    <td className="num">
-                      {item.cost ? (
-                        <NumInput
-                          value={sell}
-                          format={toDisplayNum}
-                          parse={fromDisplayNum}
-                          onValue={(n) => setSellBase(i, n)}
-                          histKey={`cat:${item.row}:sell`}
-                        />
-                      ) : ''}
+                    <td className="num" style={cs('markupcont')}>
+                      {item.cost ? `${Math.round(((item.markup ?? 0) + s.equipmentContingency) * 100)}%` : ''}
                     </td>
-                    <td className="num">
-                      {item.cost ? (
-                        <NumInput
-                          value={itemMargin(item, s)}
-                          format={pctIn}
-                          parse={pctOut}
-                          onValue={(n) => setMarginFrac(i, n)}
-                          histKey={`cat:${item.row}:margin`}
-                        />
-                      ) : ''}
-                    </td>
-                    <td className="num">{qty || ''}</td>
-                    <td className="num">{qty ? fmtMoney(sell * qty) : ''}</td>
+                    <td className="num" style={cs('sell')}>{item.cost ? fmtMoney(sell) : ''}</td>
+                    <td className="num" style={cs('margin')}>{item.cost ? fmtPct(itemMargin(item, s)) : ''}</td>
+                    <td className="num" style={cs('qty')}>{qty || ''}</td>
+                    <td className="num" style={cs('sumsell')}>{qty ? fmtMoney(sell * qty) : ''}</td>
                     {state.room_types.map((rt) => (
                       <td key={rt.idx} className="num qtycell">
                         <NumInput
                           value={item.allocations[String(rt.idx)] ?? null}
                           format={numFmt}
                           parse={numParse}
+                          className={counts[rt.idx] === 0 && item.allocations[String(rt.idx)] != null ? 'orphan-alloc' : ''}
                           onValue={(n) => setAllocNum(i, rt.idx, n)}
                           histKey={`cat:${item.row}:alloc:${rt.idx}`}
                         />
                       </td>
                     ))}
-                    <td></td>
                   </tr>,
                 );
               }

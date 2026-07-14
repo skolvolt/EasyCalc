@@ -22,6 +22,8 @@ export default function Invoices() {
   const { state, path, dirty, saveNow, update } = useProject();
   const [tab, setTab] = useState<Tab>('summary');
   const [roomType, setRoomType] = useState<number>(0);
+  const [hideRoomNums, setHideRoomNums] = useState(false);
+  const [includeMatrix, setIncludeMatrix] = useState(false);
   if (!state) return null;
   const s = settingsOf(state);
   const counts = roomTypeCounts(state);
@@ -40,7 +42,7 @@ export default function Invoices() {
       ? totalInvoiceLines(state, s)
       : [];
   const lmSubs = tab !== 'summary'
-    ? lmCategorySubtotals(state, s, isRoom ? roomTypeIdx : null).filter((x) => x.amount > 0)
+    ? lmCategorySubtotals(state, s, isRoom ? roomTypeIdx : null).filter((x) => x.amount !== 0)
     : [];
   const equipSubtotal = lines.reduce((a, l) => a + l.subtotal, 0);
   const exGst = equipSubtotal + lmSubs.reduce((a, l) => a + l.amount, 0);
@@ -58,13 +60,28 @@ export default function Invoices() {
   const openExport = async (base: 'pdf' | 'xlsx', extra = '') => {
     if (!path) return;
     if (dirty) await saveNow(); // export renders from the saved file
-    window.open(`/api/${base}?path=${encodeURIComponent(path)}&${pdfQuery}${extra}`, '_blank');
+    const roomnums = tab === 'summary' && hideRoomNums ? '&roomnums=off' : '';
+    window.open(`/api/${base}?path=${encodeURIComponent(path)}&${pdfQuery}${extra}${roomnums}`, '_blank');
   };
   const roomsVertical = (typeIdx: number) => {
     const rooms = roomsOfType(state, typeIdx);
     return rooms.length ? rooms.map((r, i) => <div key={i}>{r}</div>) : '—';
   };
-  const noPricesLabel = tab === 'total' ? 'Export Workbook' : tab === 'room' ? 'Bill of Materials' : 'PDF — no prices';
+
+  // Full workbook PDF: room summary, every room invoice/BoM + notes, and
+  // optionally the room matrix — configured from the Room Summary tab.
+  const openWorkbook = async (prices: boolean) => {
+    if (!path) return;
+    if (dirty) await saveNow();
+    const q = [
+      `path=${encodeURIComponent(path)}`,
+      'doc=workbook',
+      prices ? '' : 'prices=off',
+      hideRoomNums ? 'roomnums=off' : '',
+      includeMatrix ? 'matrix=on' : '',
+    ].filter(Boolean).join('&');
+    window.open(`/api/pdf?${q}`, '_blank');
+  };
 
   const TABS: [Tab, string][] = [
     ['summary', 'Room Summary'],
@@ -93,15 +110,68 @@ export default function Invoices() {
             ))}
           </select>
         )}
-        <button className="btn" onClick={() => openExport('pdf')}>Download PDF</button>
+
+        {/* Room Summary: workbook exports (left) + options */}
+        {tab === 'summary' && (
+          <>
+            <button
+              className="btn"
+              title="Full workbook PDF: room summary first, then every room invoice + notes"
+              onClick={() => openWorkbook(true)}
+            >
+              Export Workbook
+            </button>
+            <button
+              className="btn secondary"
+              title="Same workbook with no prices — bills of materials"
+              onClick={() => openWorkbook(false)}
+            >
+              Export Workbook — no $
+            </button>
+            <label style={{ fontSize: 13 }}>
+              <input type="checkbox" checked={hideRoomNums} onChange={(e) => setHideRoomNums(e.target.checked)} />{' '}
+              Remove room numbers
+            </label>
+            <label style={{ fontSize: 13 }}>
+              <input type="checkbox" checked={includeMatrix} onChange={(e) => setIncludeMatrix(e.target.checked)} />{' '}
+              Include room matrix
+            </label>
+          </>
+        )}
+
+        <button className="btn" style={{ marginLeft: 'auto' }} onClick={() => openExport('pdf')}>Download PDF</button>
         <button className="btn secondary" onClick={() => openExport('xlsx')}>Export Excel</button>
-        <button
-          className="btn secondary"
-          title="Export a PDF with no prices — for installation / logistics"
-          onClick={() => openExport('pdf', '&prices=off')}
-        >
-          {noPricesLabel}
-        </button>
+
+        {/* Room Invoice: bill-of-materials variants */}
+        {tab === 'room' && (
+          <>
+            <button
+              className="btn secondary"
+              title="Bill of materials, no prices (per room)"
+              onClick={() => openExport('pdf', '&prices=off')}
+            >
+              BOM - no $ (per room)
+            </button>
+            <button
+              className="btn secondary"
+              title="Bill of materials with prices (per room)"
+              onClick={() => openExport('pdf')}
+            >
+              BOM w/$
+            </button>
+          </>
+        )}
+
+        {/* Room Summary: this-summary-only no-prices PDF */}
+        {tab === 'summary' && (
+          <button
+            className="btn secondary"
+            title="This room summary as a room schedule PDF (no prices)"
+            onClick={() => openExport('pdf', '&prices=off')}
+          >
+            PDF — no prices
+          </button>
+        )}
       </div>
 
       {tab === 'room' && selectedType && (
@@ -166,8 +236,8 @@ export default function Invoices() {
             <div>Date: {new Date().toLocaleDateString('en-AU')}</div>
             {d.quoted_by && <div>Quoted by: {d.quoted_by}</div>}
             <div>
-              Valid for 30 days — expires{' '}
-              {new Date(Date.now() + 30 * 24 * 3600 * 1000).toLocaleDateString('en-AU')}
+              Valid for {d.quote_expiry_days ?? 30} days — expires{' '}
+              {new Date(Date.now() + (d.quote_expiry_days ?? 30) * 24 * 3600 * 1000).toLocaleDateString('en-AU')}
             </div>
             <div style={{ marginTop: 6 }}>{d.project_name}</div>
             {d.project_number && <div>#{String(d.project_number)}</div>}
@@ -196,7 +266,7 @@ export default function Invoices() {
             <thead>
               <tr>
                 <th>Room Type</th>
-                <th>Rooms</th>
+                {!hideRoomNums && <th>Rooms</th>}
                 <th className="num">Quantity</th>
                 <th className="num">Cost per Room</th>
                 <th className="num">Total Cost</th>
@@ -204,26 +274,26 @@ export default function Invoices() {
             </thead>
             <tbody>
               {summary.rows
-                .filter((r) => r.quantity > 0 || r.perRoom > 0)
+                .filter((r) => r.quantity > 0 || r.perRoom !== 0)
                 .map((r) => (
                   <tr key={r.typeIdx}>
                     <td>{r.name}</td>
-                    <td>{roomsVertical(r.typeIdx)}</td>
+                    {!hideRoomNums && <td>{roomsVertical(r.typeIdx)}</td>}
                     <td className="num">{r.quantity}</td>
                     <td className="num">{fmtMoney(r.perRoom)}</td>
                     <td className="num">{fmtMoney(r.total)}</td>
                   </tr>
                 ))}
               <tr className="totals">
-                <td colSpan={4}>Total Invoice (Excluding GST)</td>
+                <td colSpan={hideRoomNums ? 3 : 4}>Total Invoice (Excluding GST)</td>
                 <td className="num">{fmtMoney(summary.exGst)}</td>
               </tr>
               <tr>
-                <td colSpan={4}>GST</td>
+                <td colSpan={hideRoomNums ? 3 : 4}>GST</td>
                 <td className="num">{fmtMoney(summary.gst)}</td>
               </tr>
               <tr className="totals">
-                <td colSpan={4}>Total Invoice (Including GST)</td>
+                <td colSpan={hideRoomNums ? 3 : 4}>Total Invoice (Including GST)</td>
                 <td className="num">{fmtMoney(summary.incGst)}</td>
               </tr>
             </tbody>

@@ -18,18 +18,27 @@ export interface PriceMatch {
   sheet: string;
   currentCost: number | null;
   newPrice: number;
+  /** Header of the column the new price was taken from — for cross-checking. */
+  priceHeader?: string;
 }
 
 const norm = (v: unknown) => String(v ?? '').trim().toLowerCase();
 
-const PRICE_HEADER = /(cost|trade|buy|nett?\s*price|dealer|price)/i;
+// Columns that hold a price (any tier — trade, nett, premium, special, rrp…).
+const PRICE_HEADER = /cost|trade|buy|nett|net\s*price|dealer|wholesale|price|premium|special|rrp|list|sell/i;
+// Numeric columns that look price-ish but aren't a unit price.
+const NON_PRICE = /\b(qty|quantity|disc(ount)?|margin|weight|moq|pack|ea)\b/i;
+// GST-inclusive columns — skipped so we compare ex-GST prices to each other.
+const isIncGst = (h: string) =>
+  /incl/i.test(h) || /gst\s*inc/i.test(h) || ((/\binc\b/i.test(h) || /inc\./i.test(h)) && /gst/i.test(h));
 
 /**
  * Exact word-for-word matching, as specified: a pricelist row matches a
  * catalogue item when any cell equals the item's part number or description
- * (case/whitespace-insensitive). Price detection prefers columns whose header
- * mentions cost/trade/buy/net/dealer/price; falls back to the right-most
- * positive number in the matched row.
+ * (case/whitespace-insensitive). For the price, we gather every price-headed
+ * column, drop GST-inclusive ones, and take the CHEAPEST ex-GST value in the
+ * matched row (so e.g. a lower "Special"/"Premium" price wins over trade).
+ * Falls back to the right-most positive number when no price header is found.
  */
 export function checkPricelist(
   file: string,
@@ -53,13 +62,23 @@ export function checkPricelist(
     const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true });
     if (!rows.length) continue;
 
-    // find price-preferred columns from the first few rows' headers
+    // find price columns (and their headers) from the first few rows' headers
     const priceCols = new Set<number>();
-    for (const row of rows.slice(0, 6)) {
+    const incGstCols = new Set<number>();
+    const colHeader = new Map<number, string>();
+    for (const row of rows.slice(0, 8)) {
       row?.forEach((cell, c) => {
-        if (typeof cell === 'string' && PRICE_HEADER.test(cell)) priceCols.add(c);
+        if (typeof cell !== 'string') return;
+        if (PRICE_HEADER.test(cell) && !NON_PRICE.test(cell)) {
+          priceCols.add(c);
+          colHeader.set(c, cell.trim());
+          if (isIncGst(cell)) incGstCols.add(c);
+        }
       });
     }
+    // ex-GST price columns preferred; if a sheet only has inc-GST, use those.
+    const exGstCols = [...priceCols].filter((c) => !incGstCols.has(c));
+    const pickFrom = exGstCols.length ? exGstCols : [...priceCols];
 
     for (const row of rows) {
       if (!row) continue;
@@ -81,12 +100,18 @@ export function checkPricelist(
         }
         if (!matchedOn) continue;
 
+        // cheapest positive value among the (ex-GST) price columns for this row
         let price: number | null = null;
-        for (const c of priceCols) {
+        let priceCol = -1;
+        for (const c of pickFrom) {
           const v = row[c];
-          if (typeof v === 'number' && v > 0) { price = v; break; }
+          if (typeof v === 'number' && v > 0 && (price === null || v < price)) {
+            price = v;
+            priceCol = c;
+          }
         }
         if (price === null) {
+          // no recognised price column — right-most positive number as a last resort
           for (let c = row.length - 1; c >= 0; c--) {
             const v = row[c];
             if (typeof v === 'number' && v > 0) { price = v; break; }
@@ -102,6 +127,7 @@ export function checkPricelist(
           sheet: sheetName,
           currentCost: it.cost,
           newPrice: price,
+          priceHeader: priceCol >= 0 ? colHeader.get(priceCol) : undefined,
         });
       }
     }

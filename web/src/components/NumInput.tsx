@@ -23,6 +23,8 @@ export interface NumInputProps {
   placeholder?: string;
   title?: string;
   disabled?: boolean;
+  /** Whole numbers only — strips any decimal point as you type (percent fields). */
+  integer?: boolean;
 }
 
 function timeAgo(ts: number): string {
@@ -80,7 +82,7 @@ function HistoryMenu({
 const NUMERIC_TEXT = /^-?\d*\.?\d*$/;
 
 export default function NumInput({
-  value, onValue, format, parse, histKey, className, placeholder, title, disabled,
+  value, onValue, format, parse, histKey, className, placeholder, title, disabled, integer,
 }: NumInputProps) {
   const [buf, setBuf] = useState<string | null>(null);
   const focusVal = useRef<number | null>(null);
@@ -116,7 +118,11 @@ export default function NumInput({
         inputMode="decimal"
         value={buf ?? format(value)}
         onChange={(e) => {
-          const t = e.target.value;
+          // Integer fields: drop the decimal point and anything after it as typed,
+          // so percentages stay whole numbers ("33.7" → "33").
+          const t = integer
+            ? e.target.value.replace(/\.[^]*$/, '').replace(/[^\d-]/g, '')
+            : e.target.value;
           // Only hold a live text buffer while the user is actually typing here.
           // Programmatic changes (spreadsheet paste into an unfocused cell) skip
           // the buffer so the cell re-formats from the model instead of showing raw.

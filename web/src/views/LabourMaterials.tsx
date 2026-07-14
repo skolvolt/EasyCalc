@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useProject, fmtMoney, pctIn, pctOut, toDisplayNum, fromDisplayNum, numFmt, numParse, isEmbedded } from '../state';
 import { settingsOf, lmDerived, lmQty, roomTypeCounts } from '@shared/engine';
 import type { LmItem, LmKind } from '@shared/types';
 import NumInput from '../components/NumInput';
 import { downloadJson, listFilename } from '../listIo';
+import { startRowDrag, endRowDrag } from '../dragGhost';
+import { moveByDrop } from '../reorder';
+import { selectRow } from '../gridSelection';
 
 /** Map workbook categories into the display sections requested. */
 const SECTIONS: { title: string; match: (i: LmItem) => boolean; defaultCategory: string; kind: LmKind }[] = [
@@ -19,7 +22,7 @@ const SECTIONS: { title: string; match: (i: LmItem) => boolean; defaultCategory:
 
 const COMMISSIONING_CATEGORIES = ['Testing & commissioning', 'Programming'];
 
-export default function LabourMaterials() {
+export default function LabourMaterials({ orphanFilter = false }: { orphanFilter?: boolean }) {
   const { state, update } = useProject();
   const [confirmClear, setConfirmClear] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -98,6 +101,19 @@ export default function LabourMaterials() {
     if (!assigned.has(i)) leftovers.push([item, i]);
   });
 
+  // Which section each row belongs to — used to keep drag-reorder inside a section.
+  const sectionOfIndex = new Map<number, string>();
+  groups.forEach((g) => g.rows.forEach(([, i]) => sectionOfIndex.set(i, g.title)));
+  leftovers.forEach(([, i]) => sectionOfIndex.set(i, 'Other'));
+
+  // "Show affected rows": keep only rows with a value against a room-less type.
+  const orphanTypeIdx = state.room_types.filter((rt) => (counts[rt.idx] ?? 0) === 0).map((rt) => rt.idx);
+  const isAffected = (it: LmItem) => orphanTypeIdx.some((idx) => it.allocations[String(idx)] != null);
+  const shownGroups = orphanFilter
+    ? groups.map((g) => ({ ...g, rows: g.rows.filter(([it]) => isAffected(it)) })).filter((g) => g.rows.length)
+    : groups;
+  const shownLeftovers = orphanFilter ? leftovers.filter(([it]) => isAffected(it)) : leftovers;
+
   // Back-solve helpers — storage stays in base currency (labour: sell; others: markup).
   // Values arrive already parsed from NumInput (money in base currency, % as a fraction).
   const contOf = (it: LmItem) =>
@@ -105,6 +121,16 @@ export default function LabourMaterials() {
 
   const setCost = (i: number, n: number | null) =>
     update((dr) => (dr.labour_materials[i].cost = n));
+
+  // Drag-to-reorder within a section (grab the ⠿ handle, drop on another row).
+  const dragLm = useRef<number | null>(null);
+  const reorderLm = (targetI: number) => {
+    const from = dragLm.current;
+    dragLm.current = null;
+    if (from == null || from === targetI) return;
+    if (sectionOfIndex.get(from) !== sectionOfIndex.get(targetI)) return;
+    update((dr) => moveByDrop(dr.labour_materials, from, targetI));
+  };
 
   const setMarkupFrac = (i: number, frac: number | null) =>
     update((dr) => {
@@ -141,6 +167,7 @@ export default function LabourMaterials() {
       <table className="grid nowrap">
         <thead>
           <tr>
+            <th className="dragcol"></th>
             {showCategory && <th>Category</th>}
             <th style={{ minWidth: 190 }}>Component</th>
             <th style={{ minWidth: 170 }}>Particular</th>
@@ -152,7 +179,7 @@ export default function LabourMaterials() {
             <th className="num">Qty</th>
             <th className="num">Σ Sell</th>
             {state.room_types.map((rt) => (
-              <th key={rt.idx} className="num" title={rt.name}>
+              <th key={rt.idx} className="num type-col" title={rt.name}>
                 {rt.name.replace('SYSTEM TYPE', 'T')}
               </th>
             ))}
@@ -164,7 +191,19 @@ export default function LabourMaterials() {
             const d = lmDerived(item, s);
             const qty = lmQty(item, counts);
             return (
-              <tr key={i}>
+              <tr key={i} onDragOver={(e) => e.preventDefault()} onDrop={() => reorderLm(i)}>
+                <td className="dragcell">
+                  <span
+                    className="drag-handle"
+                    draggable
+                    title="Drag to reorder — click to select the whole row"
+                    onDragStart={(e) => { dragLm.current = i; startRowDrag(e); }}
+                    onDragEnd={(e) => { dragLm.current = null; endRowDrag(e); }}
+                    onClick={(e) => selectRow((e.currentTarget as HTMLElement).closest('tr')!)}
+                  >
+                    ⠿
+                  </span>
+                </td>
                 {showCategory && (
                   <td>
                     <select
@@ -210,6 +249,7 @@ export default function LabourMaterials() {
                     value={d.markup}
                     format={pctIn}
                     parse={pctOut}
+                    integer
                     onValue={(n) => setMarkupFrac(i, n)}
                     histKey={`lm:${item.row}:markup`}
                   />
@@ -228,6 +268,7 @@ export default function LabourMaterials() {
                     value={d.margin}
                     format={pctIn}
                     parse={pctOut}
+                    integer
                     onValue={(n) => setMarginFrac(i, n)}
                     histKey={`lm:${item.row}:margin`}
                   />
@@ -240,6 +281,7 @@ export default function LabourMaterials() {
                       value={item.allocations[String(rt.idx)] ?? null}
                       format={numFmt}
                       parse={numParse}
+                      className={counts[rt.idx] === 0 && item.allocations[String(rt.idx)] != null ? 'orphan-alloc' : ''}
                       onValue={(n) =>
                         update((dr) => {
                           if (n == null || n === 0) delete dr.labour_materials[i].allocations[String(rt.idx)];
@@ -293,10 +335,15 @@ export default function LabourMaterials() {
         )}
       </div>
 
-      {groups.map((sec) => (
+      {orphanFilter && shownGroups.length === 0 && shownLeftovers.length === 0 && (
+        <div className="panel">No affected Labour &amp; Materials rows.</div>
+      )}
+
+      {shownGroups.map((sec) => (
         <div className="lm-section" key={sec.title}>
           <h2>{sec.title}</h2>
           {renderRows(sec.rows, sec.title === 'Commissioning')}
+          {!orphanFilter && (
           <div className="toolbar" style={{ marginTop: 10, marginBottom: 0 }}>
             <button
               className="btn secondary"
@@ -325,13 +372,14 @@ export default function LabourMaterials() {
               + Add line
             </button>
           </div>
+          )}
         </div>
       ))}
 
-      {leftovers.length > 0 && (
+      {shownLeftovers.length > 0 && (
         <div className="lm-section">
           <h2>Other</h2>
-          {renderRows(leftovers, false)}
+          {renderRows(shownLeftovers, false)}
         </div>
       )}
     </>

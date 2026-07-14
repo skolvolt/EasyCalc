@@ -9,10 +9,12 @@ interface Props {
   onChange: (html: string) => void;
   minHeight?: number;
   placeholder?: string;
+  /** Fill the remaining viewport height and scroll internally (Notes page). */
+  fill?: boolean;
 }
 
 /** A small WordPad-style rich-text editor backed by a contentEditable div. */
-export default function RichText({ value, onChange, minHeight = 260, placeholder }: Props) {
+export default function RichText({ value, onChange, minHeight = 260, placeholder, fill = false }: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
   // Sync external changes (undo, project switch) in — but never while the user
@@ -39,7 +41,7 @@ export default function RichText({ value, onChange, minHeight = 260, placeholder
   );
 
   return (
-    <div className="richtext">
+    <div className={'richtext' + (fill ? ' richtext-fill' : '')}>
       <div className="notes-toolbar">
         <Tool cmd="bold" label={<b>B</b>} title="Bold (Ctrl+B)" />
         <Tool cmd="italic" label={<i>I</i>} title="Italic (Ctrl+I)" />
@@ -83,7 +85,7 @@ export default function RichText({ value, onChange, minHeight = 260, placeholder
         contentEditable
         suppressContentEditableWarning
         data-placeholder={placeholder}
-        style={{ minHeight }}
+        style={fill ? undefined : { minHeight }}
         onInput={save}
         onBlur={save}
       />

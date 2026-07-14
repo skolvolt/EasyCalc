@@ -12,7 +12,7 @@ export default function Notes() {
       <RichText
         value={state.notes_html ?? ''}
         onChange={(html) => update((dr) => (dr.notes_html = html))}
-        minHeight={440}
+        fill
         placeholder="Start typing…"
       />
     </>

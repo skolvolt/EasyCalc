@@ -3,6 +3,7 @@ import { useProject } from '../state';
 import { openProjectInNewWindow, reportBugOrFeature } from '../App';
 import ScrollTopButton from '../components/ScrollTopButton';
 import MatrixBackground from '../components/MatrixBackground';
+import Icon from '../components/Icon';
 
 interface Listing {
   path: string;
@@ -86,8 +87,13 @@ export default function Home() {
         <button className="btn secondary" onClick={reportBugOrFeature}>
           ✉ Report a bug or add a feature
         </button>
-        <button className="btn secondary" onClick={toggleTheme}>
-          {theme === 'dark' ? '☀️ Light mode' : '🌙 Dark mode'}
+        <button
+          className="btn secondary"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          onClick={toggleTheme}
+        >
+          <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+          {theme === 'dark' ? 'Light mode' : 'Dark mode'}
         </button>
       </div>
 
@@ -117,7 +123,7 @@ export default function Home() {
         </div>
         {projects.length === 0 && <p className="subtitle" style={{ marginTop: 12 }}>No projects yet — create one above.</p>}
         {projects.length > 0 && <div style={{ height: 12 }} />}
-        <table className="grid">
+        <table className="grid home-recents">
           <tbody>
             {projects.map((p) => (
               <tr key={p.path}>

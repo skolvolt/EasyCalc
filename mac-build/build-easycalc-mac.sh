@@ -8,7 +8,7 @@
 set -euo pipefail
 
 NODE_VERSION="v22.11.0"   # bundled runtime (Node 22 LTS). Bump if you like.
-APP_VERSION="0.2.1"
+APP_VERSION="0.4.0"
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"

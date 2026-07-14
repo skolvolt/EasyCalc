@@ -168,7 +168,7 @@ function metaLine(state: ProjectState): string {
   const d = state.details;
   const bits = [d.client_name || 'Client', `Date: ${today()}`];
   if (d.quoted_by) bits.push(`Quoted by: ${d.quoted_by}`);
-  bits.push('Valid 30 days');
+  bits.push(`Valid ${d.quote_expiry_days ?? 30} days`);
   return bits.join('    ·    ');
 }
 
@@ -208,7 +208,7 @@ function fillRoomInvoice(b: ReturnType<typeof sheet>, state: ProjectState, s: Se
   const rt = state.room_types.find((t) => t.idx === typeIdx);
   const count = roomTypeCounts(state)[typeIdx] ?? 0;
   const lines = roomInvoiceLines(state, s, typeIdx);
-  const lmSubs = lmCategorySubtotals(state, s, typeIdx).filter((x) => x.amount > 0);
+  const lmSubs = lmCategorySubtotals(state, s, typeIdx).filter((x) => x.amount !== 0);
   const equipSubtotal = lines.reduce((a, l) => a + l.subtotal, 0);
   const exGst = equipSubtotal + lmSubs.reduce((a, l) => a + l.amount, 0);
   const rooms = roomsOfType(state, typeIdx).join(', ') || '—';
@@ -225,9 +225,19 @@ function fillRoomInvoice(b: ReturnType<typeof sheet>, state: ProjectState, s: Se
   b.total('Total Cost Per Room Excluding GST', exGst, 4);
 }
 
-function fillRoomSummary(b: ReturnType<typeof sheet>, state: ProjectState, s: Settings) {
+function fillRoomSummary(b: ReturnType<typeof sheet>, state: ProjectState, s: Settings, hideRooms = false) {
   const sum = roomSummary(state, s);
-  const rows = sum.rows.filter((r) => r.quantity > 0 || r.perRoom > 0);
+  const rows = sum.rows.filter((r) => r.quantity > 0 || r.perRoom !== 0);
+  if (hideRooms) {
+    b.head(['Room Type', 'Quantity', 'Cost per Room', 'Total Cost'], new Set([1, 2, 3]));
+    for (const r of rows) {
+      b.data([r.name, r.quantity, r.perRoom, r.total], new Set([2, 3]), new Set([1]));
+    }
+    b.total('Total Invoice (Excluding GST)', sum.exGst, 3);
+    b.line('GST', sum.gst, 3);
+    b.total('Total Invoice (Including GST)', sum.incGst, 3);
+    return;
+  }
   b.head(['Room Type', 'Rooms', 'Quantity', 'Cost per Room', 'Total Cost'], new Set([2, 3, 4]));
   for (const r of rows) {
     const rooms = roomsOfType(state, r.typeIdx).join('\n') || '—';
@@ -240,7 +250,7 @@ function fillRoomSummary(b: ReturnType<typeof sheet>, state: ProjectState, s: Se
 
 function fillProjectTotals(b: ReturnType<typeof sheet>, state: ProjectState, s: Settings) {
   const t = projectTotals(state, s);
-  const lmSubs = lmCategorySubtotals(state, s, null).filter((x) => x.amount > 0);
+  const lmSubs = lmCategorySubtotals(state, s, null).filter((x) => x.amount !== 0);
   const gst = t.revenue * s.gst;
   b.head(['Item', 'Amount'], new Set([1]));
   b.total('Equipment', t.equipmentRevenue, 1);
@@ -251,7 +261,11 @@ function fillProjectTotals(b: ReturnType<typeof sheet>, state: ProjectState, s: 
 }
 
 /** Build a styled .xlsx workbook for an invoice document. */
-export function renderWorkbook(state: ProjectState, doc: DocKind): { title: string; buffer: Buffer } {
+export function renderWorkbook(
+  state: ProjectState,
+  doc: DocKind,
+  opts: { hideRooms?: boolean } = {},
+): { title: string; buffer: Buffer } {
   const s = settingsOf(state);
   const wb = XLSX.utils.book_new();
   const used = new Set<string>();
@@ -261,9 +275,9 @@ export function renderWorkbook(state: ProjectState, doc: DocKind): { title: stri
   let title: string;
   if (doc.kind === 'summary') {
     title = 'Room Summary';
-    const b = heading(sheet(5), state, 'Room Summary');
+    const b = heading(sheet(opts.hideRooms ? 4 : 5), state, 'Room Summary');
     b.blank();
-    fillRoomSummary(b, state, s);
+    fillRoomSummary(b, state, s, opts.hideRooms);
     add('Room Summary', b.build());
   } else if (doc.kind === 'room') {
     const rt = state.room_types.find((t) => t.idx === doc.typeIdx);

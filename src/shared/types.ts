@@ -13,6 +13,8 @@ export interface ProjectDetails {
   summary: string | null;
   /** Name of the person who prepared the quote — stamped on exported PDFs. */
   quoted_by?: string | null;
+  /** How many days a quote stays valid — drives the expiry line on quote PDFs. */
+  quote_expiry_days?: number | null;
   /** Free-text notes shown on the Room Summary tab and atop summary/room PDFs. */
   room_summary_notes?: string | null;
   /** Floorplan image (data URL) — printed centred on summary/room PDFs. */
@@ -106,4 +108,6 @@ export interface ProjectState {
    * sessions for the life of the project.
    */
   cell_history?: Record<string, { value: number; ts: number; by?: string }[]>;
+  /** Manual highlight colours in the Equipment Schedule: "rowId:colIndex" -> hex. */
+  cell_colors?: Record<string, string>;
 }

@@ -2,6 +2,44 @@
 
 All notable changes to EasyCalc. Newest first.
 
+## 0.4.0
+
+**Equipment Schedule**
+- **Column filters:** a **Filters** dropdown shows/hides any column (except system types); hidden columns are skipped by keyboard navigation and copy.
+- **Cell highlighting:** red / yellow / green / blue buttons colour the borders of the selected cells, rows or columns; a **Clear** button (selection) and a two-stage **Clear all**. Highlights save with the project and are separate from error cells.
+- **Editable vs calculated:** Cost and Mark-up are editable; **Sell, Margin and Qty are now calculated (read-only)**. New **Mark-up + Contingency %** column. Description / Part # / Brand / Supplier are editable on every row.
+- **Whole-number percentages** in all editable percent fields.
+- **Per-section “+ Add row”** in each section header.
+- **Show only affected rows** when there's a missing-type error (see below).
+
+**Reordering** — drag a row's **⠿** handle to reorder within its section (Schedule, Labour & Materials, and Rooms), with a translucent ghost-row that follows the cursor and drops exactly where you release. **Click** the handle to select the whole row.
+
+**Missing-type warnings** — a value entered against a system type that no room uses shows in **red and pulses**, with a matching pulsing warning at the top-right (only on the page that has the error) and a **Show affected rows** filter.
+
+**Rooms & Types**
+- **Duplicate a type** with the **D** button — copies its equipment/labour allocations and per-room quantities.
+- Drag room rows to reorder; the drag handle sits in its own column.
+
+**Quotes & Invoices**
+- **Export Workbook** (and a **no-prices** variant) now lives on the **Room Summary** tab — one PDF with the room summary first, then every room invoice + its notes, and an optional **room matrix** page (checkbox).
+- **Room Summary:** a **Remove room numbers** option (preview + exports).
+- **Room Invoice:** bill-of-materials buttons — **BOM - no $ (per room)** and **BOM w/$**.
+- **Quote expiry** is now configurable on the Dashboard.
+- **Negative / discount line items** are retained in all quotes, invoices and exports.
+- **Room-matrix exports** now use uniform cell sizes.
+
+**Procurement**
+- **Per-supplier totals** shown in their own table (kept out of the item selection); grand-total row styled like the header.
+- **Fixed a crash** on catalogues containing numeric part numbers.
+
+**Pricelist matching** now picks the **cheapest ex-GST price** across all price columns (trade / premium / special / etc.), reports which column it came from, and shows a cross-check reminder.
+
+**Interface**
+- **Sidebar** redesigned: uniform monochrome icons on the left of each button, grouped by purpose (Save now / Save As / Save as web file together, etc.); Autosave matches the button font.
+- **Notes page** scrolls internally so its bottom stays in view.
+- **Start page:** app-style dark/light toggle icon, a slightly darker light-mode background with matching animation, and a row-hover highlight on the recent-projects list.
+- **Install as an app:** a web manifest lets you install EasyCalc from Edge/Chrome so it runs in its own window with its **own taskbar icon** (no browser chrome).
+
 ## 0.3.2
 - **Rooms page redesigned as a single clean matrix** — system types across the top (rename inline, drag **⠿** to reorder, **−** to remove, **+** to add), rooms down the side with a row-number gutter and a **COUNT** totals row. The old System Types panel and list view are gone; the matrix PDF/Excel export is retained.
 

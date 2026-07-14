@@ -109,7 +109,7 @@ export default function Dashboard() {
           <thead>
             <tr>
               <th>Category</th>
-              <th className="num">Contingency %</th>
+              <th className="num cont-col">Contingency %</th>
               <th className="num">Revenue</th>
               <th className="num">Hours</th>
               <th className="num">Cost</th>
@@ -121,11 +121,12 @@ export default function Dashboard() {
             {cats.map((c, i) => (
               <tr key={c.name}>
                 <td>{c.name}</td>
-                <td className="num">
+                <td className="num cont-col">
                   <NumInput
                     value={c.contingency}
                     format={pctIn}
                     parse={pctOut}
+                    integer
                     onValue={(n) => update((dr) => (dr.categories[i].contingency = n ?? 0))}
                     histKey={`cont:${c.name}`}
                     title="Contingency added to this category's mark-up, as a percentage"
@@ -154,11 +155,24 @@ export default function Dashboard() {
               value={d.gst ?? 0.1}
               format={pctIn}
               parse={pctOut}
+              integer
               onValue={(n) => update((dr) => (dr.details.gst = n ?? 0.1))}
               title="GST rate applied to this project's totals and invoices"
             />
           </div>
           {field('quoted_by', 'Quoted by')}
+          <div>
+            <label>Quote valid for (days)</label>
+            <input
+              type="number"
+              min={0}
+              value={d.quote_expiry_days ?? 30}
+              onChange={(e) =>
+                update((dr) => (dr.details.quote_expiry_days =
+                  e.target.value === '' ? null : Math.max(0, Math.floor(Number(e.target.value) || 0))))
+              }
+            />
+          </div>
           {field('client_name', 'Client name')}
           {field('client_site', 'Client site')}
           {field('client_address', 'Street / postal address')}
