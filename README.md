@@ -4,7 +4,7 @@
 
 ### Fast, local project costing & quoting for AV / integration work
 
-![version](https://img.shields.io/badge/version-0.3.2-1256a0)
+![version](https://img.shields.io/badge/version-0.4.0-1256a0)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-555)
 ![offline](https://img.shields.io/badge/runs-100%25%20offline-157a4a)
 ![license](https://img.shields.io/badge/license-proprietary-b3372c)
