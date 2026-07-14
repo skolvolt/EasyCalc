@@ -9,9 +9,9 @@
 ![offline](https://img.shields.io/badge/runs-100%25%20offline-157a4a)
 ![license](https://img.shields.io/badge/license-proprietary-b3372c)
 
-### [⬇️ Download EasyCalc for Windows](https://github.com/skolvolt/EasyCalc/releases/latest)
+### [⬇️ Download for Windows](https://github.com/skolvolt/EasyCalc/releases/latest) &nbsp;·&nbsp; [⬇️ Download for macOS](https://github.com/skolvolt/EasyCalc/releases/latest)
 
-<sub>No terminal needed — click above, open the `.exe` under **Assets**, and run it.</sub>
+<sub>No terminal needed — click above, open the installer under **Assets** (`.exe` for Windows, `.dmg` for macOS), and run it.</sub>
 
 </div>
 
@@ -59,9 +59,14 @@ Nothing is sent anywhere. Projects are plain files you own.
 > **More info → Run anyway**.
 
 ### macOS
-Build the `.dmg` on a Mac from source — see [`mac-build/`](mac-build/). It
-produces a drag‑to‑Applications disk image. (First launch: right‑click → Open to
-clear Gatekeeper, since it isn't notarized.)
+1. Grab the latest **`EasyCalc-x.y.z.dmg`** from the
+   [**Releases**](https://github.com/skolvolt/EasyCalc/releases/latest) page.
+2. Open it and drag **EasyCalc** into **Applications**.
+3. Launch it — it opens in its own window.
+
+> First launch: **right‑click → Open** to clear Gatekeeper (the app is ad‑hoc
+> signed, not notarized). The published `.dmg` is currently built for **Apple
+> Silicon**; on an Intel Mac, build from source — see [`mac-build/`](mac-build/).
 
 **What's new:** see the [**changelog**](CHANGELOG.md). The app auto‑updates from
 the Releases page on launch.
