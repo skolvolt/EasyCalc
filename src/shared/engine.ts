@@ -108,14 +108,16 @@ export function lmDerived(item: LmItem, s: Settings): LmDerived {
 }
 
 /**
- * Labour & Materials quantity is the sum of the row's allocation entries (the
- * numbers to the right of the Sell column), per the app's L&M convention —
- * these are treated as absolute quantities, not per-room multipliers. `counts`
- * is accepted for call-site symmetry with itemQty but intentionally unused.
+ * Labour & Materials quantity, same model as equipment (itemQty): each
+ * allocation entry is a per-room multiplier, scaled by how many rooms of that
+ * system type exist. So `1` against a type with 13 rooms contributes 13, and a
+ * type with no rooms (count 0) contributes nothing. When `counts` is omitted,
+ * entries are taken as absolute quantities (× 1).
  */
-export function lmQty(item: LmItem, _counts?: number[]): number {
+export function lmQty(item: LmItem, counts?: number[]): number {
   let q = 0;
-  for (const per of Object.values(item.allocations)) q += per;
+  for (const [idx, per] of Object.entries(item.allocations))
+    q += per * (counts ? (counts[+idx] ?? 0) : 1);
   return q;
 }
 
