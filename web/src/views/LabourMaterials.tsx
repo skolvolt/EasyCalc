@@ -20,8 +20,6 @@ const SECTIONS: { title: string; match: (i: LmItem) => boolean; defaultCategory:
   { title: 'Parts & Materials', match: (i) => i.kind === 'part', defaultCategory: 'Parts & Materials', kind: 'part' },
 ];
 
-const COMMISSIONING_CATEGORIES = ['Testing & commissioning', 'Programming'];
-
 export default function LabourMaterials({ orphanFilter = false }: { orphanFilter?: boolean }) {
   const { state, update } = useProject();
   const [confirmClear, setConfirmClear] = useState(false);
@@ -205,17 +203,13 @@ export default function LabourMaterials({ orphanFilter = false }: { orphanFilter
                   </span>
                 </td>
                 {showCategory && (
-                  <td>
-                    <select
+                  <td className="desc">
+                    <input
                       value={item.category ?? ''}
                       onChange={(e) =>
                         update((dr) => (dr.labour_materials[i].category = e.target.value))
                       }
-                    >
-                      {COMMISSIONING_CATEGORIES.map((c) => (
-                        <option key={c}>{c}</option>
-                      ))}
-                    </select>
+                    />
                   </td>
                 )}
                 <td className="desc">
