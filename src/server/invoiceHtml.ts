@@ -103,12 +103,18 @@ function shell(title: string, body: string, state: ProjectState, mode: HeaderMod
     th { background: #e8f0fa; font-weight: 600; }
     td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
     tr.totals td { font-weight: 700; background: #f4f7fb; }
-    /* room matrix: uniform cell size (fixed width + height, centred) */
-    table.matrix { table-layout: fixed; width: auto; }
+    /* room matrix: type headers rotated vertical so each column is only as wide
+       as the number it holds (uniform); the table is zoomed to fit the page. */
     table.matrix th, table.matrix td {
-      width: 70px; height: 30px; padding: 2px 4px;
-      text-align: center; vertical-align: middle;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      padding: 2px 3px; text-align: center; vertical-align: middle;
+      font-variant-numeric: tabular-nums; word-break: break-word;
+    }
+    table.matrix th.typecol {
+      height: var(--hh, 140px); vertical-align: bottom; padding: 4px 0; word-break: normal;
+    }
+    table.matrix th.typecol > span {
+      display: inline-block; writing-mode: vertical-rl; transform: rotate(180deg);
+      font-size: 9.5px; font-weight: 600; line-height: 1.05;
     }
     footer { margin-top: 30px; font-size: 10px; color: #67788e; }
     thead { display: table-header-group; }
@@ -238,23 +244,35 @@ function roomInvoiceSection(state: ProjectState, s: Settings, typeIdx: number, p
 }
 
 /** Rooms × system types quantity matrix — a pricing-free working chart for site. */
-function roomMatrixTable(state: ProjectState): string {
+function roomMatrixTable(state: ProjectState, availPx = 718): string {
   const counts = roomTypeCounts(state);
   const types = state.room_types;
   const qtyFor = (room: ProjectState['rooms'][number], idx: number) =>
     room.types.find((t) => t.type_idx === idx)?.qty ?? 0;
-  // Short type label (like the app matrix) so it fits a uniform-width cell.
   const short = (name: string) => esc(name.replace(/SYSTEM TYPE/i, 'T'));
+  // Fixed layout: wide-enough label columns + a uniform narrow column per type
+  // (only as thick as a number). Known widths let us zoom the whole table to
+  // fit the printable page width (availPx) so nothing falls off the edge.
+  const LABEL_W = [58, 96, 66]; // Level, Area, Room No.
+  const TYPE_W = 26;
+  const tableW = LABEL_W.reduce((a, b) => a + b, 0) + types.length * TYPE_W + 4;
+  const zoom = Math.min(1, +(availPx / tableW).toFixed(3));
+  // Vertical header height = the longest type name, so all headers are uniform.
+  const maxLen = Math.max(8, ...types.map((t) => short(t.name).length));
+  const headH = Math.min(230, Math.max(60, Math.round(maxLen * 6.1) + 14));
+  const cols = `<colgroup>${LABEL_W.map((w) => `<col style="width:${w}px">`).join('')}${types
+    .map(() => `<col style="width:${TYPE_W}px">`)
+    .join('')}</colgroup>`;
   const head = `<tr><th>Level</th><th>Area</th><th>Room No.</th>
-    ${types.map((t) => `<th class="num" title="${esc(t.name)}">${short(t.name)}</th>`).join('')}</tr>`;
+    ${types.map((t) => `<th class="typecol" title="${esc(t.name)}"><span>${short(t.name)}</span></th>`).join('')}</tr>`;
   const rows = state.rooms
     .map((room) =>
       `<tr><td>${esc(room.level)}</td><td>${esc(room.area)}</td><td>${esc(room.room_no)}</td>
-        ${types.map((t) => { const q = qtyFor(room, t.idx); return `<td class="num">${q || ''}</td>`; }).join('')}</tr>`)
+        ${types.map((t) => { const q = qtyFor(room, t.idx); return `<td>${q || ''}</td>`; }).join('')}</tr>`)
     .join('');
   const totals = `<tr class="totals"><td colspan="3">Total rooms per type</td>
-    ${types.map((t) => `<td class="num">${counts[t.idx] || ''}</td>`).join('')}</tr>`;
-  return `<table class="matrix"><thead>${head}</thead><tbody>${rows}${totals}</tbody></table>`;
+    ${types.map((t) => `<td>${counts[t.idx] || ''}</td>`).join('')}</tr>`;
+  return `<table class="matrix" style="width:${tableW}px; table-layout:fixed; zoom:${zoom}; --hh:${headH}px">${cols}<thead>${head}</thead><tbody>${rows}${totals}</tbody></table>`;
 }
 
 export function renderDocument(
@@ -268,7 +286,7 @@ export function renderDocument(
   const matrix = !!opts.matrix;
 
   if (doc.kind === 'matrix') {
-    const body = roomMatrixTable(state);
+    const body = roomMatrixTable(state, 1047); // prints landscape
     return { title: 'Room Matrix', html: shell('Room Matrix', body, state, 'matrix') };
   }
 
@@ -278,14 +296,15 @@ export function renderDocument(
   if (doc.kind === 'workbook') {
     const wbCounts = roomTypeCounts(state);
     const wbTypes = state.room_types.filter((rt) => (wbCounts[rt.idx] ?? 0) > 0);
-    const summaryPage = `<section><h2>Room Summary</h2>${roomSummaryTable(state, s, prices, hideRooms)}</section>`;
+    const summaryPage = `<section class="${matrix ? 'page' : ''}"><h2>Room Summary</h2>${roomSummaryTable(state, s, prices, hideRooms)}</section>`;
     const roomPages = wbTypes
       .map((rt) => `<section class="page">${roomInvoiceSection(state, s, rt.idx, prices)}</section>`)
       .join('');
+    // Matrix goes at the top of the first page, under the title (no page break).
     const matrixPage = matrix
-      ? `<section class="page"><h2>Room Matrix</h2>${roomMatrixTable(state)}</section>`
+      ? `<section><h2>Room Matrix</h2>${roomMatrixTable(state, 718)}</section>` // workbook prints portrait
       : '';
-    const body = summaryPage + roomPages + matrixPage;
+    const body = matrixPage + summaryPage + roomPages;
     const title = 'Project Workbook'; // same title with or without prices
     return { title, html: shell(title, body, state, prices ? 'quote' : 'working') };
   }
