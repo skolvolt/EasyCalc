@@ -278,8 +278,7 @@ export function renderDocument(
   if (doc.kind === 'workbook') {
     const wbCounts = roomTypeCounts(state);
     const wbTypes = state.room_types.filter((rt) => (wbCounts[rt.idx] ?? 0) > 0);
-    const summaryTitle = prices ? 'Room Summary' : 'Room Schedule';
-    const summaryPage = `<section><h2>${summaryTitle}</h2>${roomSummaryTable(state, s, prices, hideRooms)}</section>`;
+    const summaryPage = `<section><h2>Room Summary</h2>${roomSummaryTable(state, s, prices, hideRooms)}</section>`;
     const roomPages = wbTypes
       .map((rt) => `<section class="page">${roomInvoiceSection(state, s, rt.idx, prices)}</section>`)
       .join('');
@@ -287,20 +286,19 @@ export function renderDocument(
       ? `<section class="page"><h2>Room Matrix</h2>${roomMatrixTable(state)}</section>`
       : '';
     const body = summaryPage + roomPages + matrixPage;
-    const title = prices ? 'Project Workbook' : 'Project Workbook — no prices';
+    const title = 'Project Workbook'; // same title with or without prices
     return { title, html: shell(title, body, state, prices ? 'quote' : 'working') };
   }
 
   if (doc.kind === 'summary') {
-    const title = prices ? 'Room Summary' : 'Room Schedule';
+    const title = 'Room Summary'; // same title with or without prices
     const body = roomSummaryTable(state, s, prices, hideRooms);
     return { title, html: shell(title, body, state, prices ? 'quote' : 'working') };
   }
 
   if (doc.kind === 'room') {
     const rt = state.room_types.find((t) => t.idx === doc.typeIdx);
-    // Without prices this is a Bill of Materials for installation/logistics.
-    const title = prices ? `Room Invoice — ${rt?.name ?? ''}` : `Bill of Materials — ${rt?.name ?? ''}`;
+    const title = `Room Invoice — ${rt?.name ?? ''}`; // same title with or without prices
     // roomInvoiceSection now carries this room type's own notes + floorplan.
     const body = roomInvoiceSection(state, s, doc.typeIdx, prices);
     return { title, html: shell(title, body, state, prices ? 'quote' : 'working') };
@@ -315,11 +313,11 @@ export function renderDocument(
     .join('');
 
   if (!prices) {
-    // "Export Workbook" — collated bills of materials + a room schedule.
+    // Collated bills of materials + room summary — same title as the priced doc.
     const end = `<section class="${roomPages ? 'page' : ''}">
-      <h2>Room Schedule</h2>${roomSummaryTable(state, s, false, hideRooms)}</section>`;
+      <h2>Room Summary</h2>${roomSummaryTable(state, s, false, hideRooms)}</section>`;
     const body = roomPages + end;
-    return { title: 'Project Workbook', html: shell('Project Workbook', body, state, 'working') };
+    return { title: 'Total Project Invoice', html: shell('Total Project Invoice', body, state, 'working') };
   }
 
   const endTable = `<section class="${roomPages ? 'page' : ''}">
