@@ -2,6 +2,20 @@
 
 All notable changes to EasyCalc. Newest first.
 
+## 0.4.1
+
+**Labour & Materials**
+- **Quantities now scale by room count**, exactly like the Equipment Schedule: a number entered against a system type is treated as *per room* and multiplied by how many rooms of that type exist. A `1` against a type used by 13 rooms now totals **13**. Types with **no rooms assigned no longer add to any total**. This also fixes a case where the Dashboard total and the Room Summary total could disagree.
+- **Commissioning section:** the category **dropdowns are gone** — those cells are now normal editable cells like every other column.
+
+**Room Matrix (PDF)**
+- In **workbook exports** the matrix now prints at the **top of the first page**, under the title.
+- **Column headers are rotated vertical**, so every system-type column is uniform and only as wide as the number it holds.
+- The matrix **scales to fit the page** — no columns fall off the edge, whichever project you export.
+
+**Documents**
+- A document keeps the **same title with or without prices** (no more separate "Room Schedule" / "Bill of Materials" wording).
+
 ## 0.4.0
 
 **Equipment Schedule**
