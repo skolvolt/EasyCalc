@@ -486,6 +486,12 @@ table.grid td.cell-sel {
   background: var(--accent-soft) !important;
   box-shadow: inset 0 0 0 1px var(--accent);
 }
+/* Read-only grids also get a real (invisible) browser Selection matching the
+   highlight above, so the right-click menu's native "Copy" is genuinely
+   enabled/functional there instead of always greyed out — see
+   syncNativeSelection in App.tsx. Hidden so it doesn't double up visually
+   with .cell-sel. */
+table.grid ::selection { background: transparent; }
 
 /* ---- orphan allocation: red text when the system type has no rooms ---- */
 /* a value typed into a type column whose type isn't assigned to any room */

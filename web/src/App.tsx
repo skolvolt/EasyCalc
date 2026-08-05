@@ -159,7 +159,9 @@ function useCrosshair() {
  * Spreadsheet-style grid interaction on every `table.grid`:
  *  - arrow keys move between input cells (Left/Right leave a cell at the text edge);
  *  - Shift+arrows / Shift+click / mouse-drag select a rectangular range;
- *  - Ctrl+C copies the selection as TSV, Ctrl+V pastes a block (a single copied
+ *  - Ctrl+C copies the selection to the OS clipboard as both TSV and a real
+ *    HTML table (so pasting into Excel/Word/email lands as an actual table,
+ *    not just tab-separated text), Ctrl+V pastes a block (a single copied
  *    value fills the whole selection, Excel-style).
  */
 function useSpreadsheetGrid() {
@@ -191,8 +193,36 @@ function useSpreadsheetGrid() {
 
     const clearHi = () =>
       document.querySelectorAll('td.cell-sel').forEach((e) => e.classList.remove('cell-sel'));
-    const clearSel = () => { selAnchor = null; selHead = null; clearHi(); };
+    // A real (CSS-hidden) browser Selection matching the highlight, so the
+    // right-click menu's native "Copy" is enabled instead of always greyed
+    // out. Only for read-only tables (Procurement etc.) — a native Selection
+    // can't see into an <input>'s value, so on editable grids it would make
+    // "Copy" look enabled while actually copying nothing; there, Ctrl+C
+    // (handled ourselves) stays the only real path and native Copy stays
+    // honestly disabled.
+    const syncNativeSelection = () => {
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      if (!selAnchor || !selHead || selAnchor.table !== selHead.table) return;
+      const t = selAnchor.table;
+      if (t.querySelector('input')) return;
+      const r1 = Math.min(selAnchor.r, selHead.r), r2 = Math.max(selAnchor.r, selHead.r);
+      const c1 = Math.min(selAnchor.c, selHead.c), c2 = Math.max(selAnchor.c, selHead.c);
+      const startTd = cellAt(t, r1, c1), endTd = cellAt(t, r2, c2);
+      if (!startTd || !endTd) return;
+      const range = document.createRange();
+      range.setStartBefore(startTd);
+      range.setEndAfter(endTd);
+      sel?.addRange(range);
+    };
+    const clearSel = () => { selAnchor = null; selHead = null; clearHi(); syncNativeSelection(); };
     const drawHi = () => {
+      // syncNativeSelection is NOT called here — setting a real Selection on
+      // every mouseover while a drag is in progress fights the browser's own
+      // native drag-selection state machine (each JS-set Range resets its
+      // anchor, so the drag never gets past the first cell without an extra
+      // click to "kick" it loose). It runs once, on mouseup, once the
+      // selection has settled — see onMouseUp.
       clearHi();
       if (!selAnchor || !selHead || selAnchor.table !== selHead.table) return;
       const t = selAnchor.table;
@@ -242,18 +272,43 @@ function useSpreadsheetGrid() {
       !!(selAnchor && selHead && selAnchor.table === selHead.table
         && !(selAnchor.r === selHead.r && selAnchor.c === selHead.c));
 
-    /** TSV of the current rectangle (skips pure header rows), or null. */
-    const buildTSV = () => {
+    // A cell's copyable value: an input's live value where one exists, else
+    // its plain text (read-only display tables — Procurement, summaries —
+    // have no inputs at all, just <td>text</td>).
+    const cellValue = (t: HTMLTableElement, r: number, c: number) => {
+      const inp = inputAt(t, r, c);
+      if (inp) return inp.value;
+      const cell = cellAt(t, r, c);
+      return cell && cell.style.display !== 'none' ? (cell.textContent ?? '').trim() : '';
+    };
+
+    /** 2D array of the current rectangle's cell values, or null. Skips pure
+     *  header/divider rows (a row with no per-column input, in a table that
+     *  otherwise has inputs) — but a fully read-only table (no inputs
+     *  anywhere, e.g. Procurement) has no such rows to skip, every row counts. */
+    const buildRows = (): string[][] | null => {
       const R = rect(); if (!R) return null;
-      const lines: string[] = [];
+      const readOnly = !R.table.querySelector('input');
+      const out: string[][] = [];
       for (let r = R.r1; r <= R.r2; r++) {
         const cols: string[] = [];
         let rowHasInput = false;
-        for (let c = R.c1; c <= R.c2; c++) { const inp = inputAt(R.table, r, c); if (inp) rowHasInput = true; cols.push(inp ? inp.value : ''); }
-        if (rowHasInput) lines.push(cols.join('\t'));
+        for (let c = R.c1; c <= R.c2; c++) {
+          if (inputAt(R.table, r, c)) rowHasInput = true;
+          cols.push(cellValue(R.table, r, c));
+        }
+        if (readOnly || rowHasInput) out.push(cols);
       }
-      return lines.length ? lines.join('\n') : null;
+      return out.length ? out : null;
     };
+    const tsvOf = (rows: string[][]) => rows.map((r) => r.join('\t')).join('\n');
+    const htmlEscape = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]!));
+    // A real <table> alongside the TSV — Excel, Word, email clients and other
+    // rich-text targets all prefer text/html when it's on the clipboard, so
+    // this is what makes the paste land as an actual formatted table instead
+    // of raw tab-separated text.
+    const htmlOf = (rows: string[][]) =>
+      `<table>${rows.map((r) => `<tr>${r.map((v) => `<td>${htmlEscape(v)}</td>`).join('')}</tr>`).join('')}</table>`;
 
     /** Distribute clipboard TSV over the selection: a single value fills the
      *  whole selection; a block maps onto consecutive data rows (skipping
@@ -281,24 +336,27 @@ function useSpreadsheetGrid() {
       for (let r = R.r1; r <= R.r2; r++) for (let c = R.c1; c <= R.c2; c++) setCell(R.table, r, c, '');
     };
 
-    // Native clipboard events — synchronous, no permission prompt, and they
-    // correctly pre-empt the browser's default single-input paste.
     const inCellTextSelection = () => {
       const a = document.activeElement;
       return a instanceof HTMLInputElement && a.selectionStart !== a.selectionEnd;
     };
-    const onCopy = (e: ClipboardEvent) => {
-      if (inCellTextSelection() && !isMultiSel()) return; // let native copy partial text
-      const tsv = buildTSV(); if (tsv == null) return;
-      e.clipboardData?.setData('text/plain', tsv);
+    // Ctrl/Cmd+C / X, handled at keydown rather than via the native 'copy'/'cut'
+    // events: this grid's multi-cell selection is our own CSS highlight, not a
+    // real browser Selection, and browsers only fire 'copy' when something is
+    // natively selected — so the native event silently never fired for a
+    // multi-cell (or even a plain unselected single-cell) copy. Writing
+    // straight to the clipboard from the key handler works regardless, and
+    // lets us hand over text/html (a real table) alongside the TSV.
+    const onCopyOrCutKey = (e: KeyboardEvent, cut: boolean) => {
+      if (inCellTextSelection() && !isMultiSel()) return; // let native copy handle partial text
+      const rows = buildRows();
+      if (!rows || !navigator.clipboard?.write) return; // nothing selected, or no Clipboard API — fall through to native
       e.preventDefault();
-    };
-    const onCut = (e: ClipboardEvent) => {
-      if (inCellTextSelection() && !isMultiSel()) return;
-      const tsv = buildTSV(); if (tsv == null) return;
-      e.clipboardData?.setData('text/plain', tsv);
-      e.preventDefault();
-      clearRange();
+      const item = new ClipboardItem({
+        'text/plain': new Blob([tsvOf(rows)], { type: 'text/plain' }),
+        'text/html': new Blob([htmlOf(rows)], { type: 'text/html' }),
+      });
+      navigator.clipboard.write([item]).then(() => { if (cut) clearRange(); }).catch(() => {});
     };
     const onPaste = (e: ClipboardEvent) => {
       if (!rect()) return;
@@ -311,6 +369,10 @@ function useSpreadsheetGrid() {
     };
 
     const onMouseDown = (e: MouseEvent) => {
+      // Right/middle click (e.g. to open the browser context menu over a
+      // selection, for its own native Copy) must not disturb the selection —
+      // only the primary button drives select/drag.
+      if (e.button !== 0) return;
       // controls that act on the current selection (e.g. the cell-colour
       // buttons) must not wipe it when clicked.
       if ((e.target as HTMLElement).closest?.('.keep-selection')) return;
@@ -321,7 +383,14 @@ function useSpreadsheetGrid() {
         if (!selAnchor || selAnchor.table !== loc.table) selAnchor = curCell() ?? loc;
         selHead = loc; drawHi();
       } else {
-        dragAnchor = loc; clearSel(); // plain click focuses the input normally
+        dragAnchor = loc;
+        if (inputAt(loc.table, loc.r, loc.c)) {
+          clearSel(); // plain click on an editable cell focuses it normally
+        } else {
+          // read-only cell (nothing to focus) — register it as a single-cell
+          // selection so it's immediately copyable, and drag can extend it.
+          selAnchor = loc; selHead = loc; drawHi();
+        }
       }
     };
     const onMouseOver = (e: MouseEvent) => {
@@ -334,7 +403,7 @@ function useSpreadsheetGrid() {
         drawHi();
       }
     };
-    const onMouseUp = () => { dragAnchor = null; };
+    const onMouseUp = () => { dragAnchor = null; syncNativeSelection(); };
 
     const onKey = (e: KeyboardEvent) => {
       // Escape cancels the current cell selection (range + focused cell).
@@ -345,6 +414,10 @@ function useSpreadsheetGrid() {
           clearSel();
           if (inGrid) (active as HTMLElement).blur();
         }
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'x')) {
+        onCopyOrCutKey(e, e.key === 'x');
         return;
       }
       // Delete/Backspace clears every cell in a multi-cell selection at once.
@@ -402,8 +475,6 @@ function useSpreadsheetGrid() {
     document.addEventListener('mouseover', onMouseOver);
     document.addEventListener('mouseup', onMouseUp);
     document.addEventListener('keydown', onKey);
-    document.addEventListener('copy', onCopy);
-    document.addEventListener('cut', onCut);
     document.addEventListener('paste', onPaste);
     return () => {
       registerSelectRow(null);
@@ -411,8 +482,6 @@ function useSpreadsheetGrid() {
       document.removeEventListener('mouseover', onMouseOver);
       document.removeEventListener('mouseup', onMouseUp);
       document.removeEventListener('keydown', onKey);
-      document.removeEventListener('copy', onCopy);
-      document.removeEventListener('cut', onCut);
       document.removeEventListener('paste', onPaste);
       clearHi();
     };
