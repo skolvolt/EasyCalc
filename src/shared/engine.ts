@@ -30,10 +30,11 @@ export function roomTypeCounts(state: ProjectState): number[] {
   return counts;
 }
 
-/** Best label for a physical room — its number, else area, else level. */
+/** Best label for a physical room — its number, else area. Level is a
+ *  separate axis (which floor), not a room identifier — see levelsOfType. */
 export function roomLabel(room: ProjectState['rooms'][number]): string {
   const pick = (v: unknown) => (v == null ? '' : String(v).trim());
-  return pick(room.room_no) || pick(room.area) || pick(room.level);
+  return pick(room.room_no) || pick(room.area);
 }
 
 /** Labels of the physical rooms assigned to a given system type. */
@@ -42,6 +43,16 @@ export function roomsOfType(state: ProjectState, typeIdx: number): string[] {
     .filter((r) => r.types.some((t) => t.type_idx === typeIdx))
     .map(roomLabel)
     .filter(Boolean);
+}
+
+/** Distinct level(s) among the physical rooms assigned to a given system type. */
+export function levelsOfType(state: ProjectState, typeIdx: number): string[] {
+  const pick = (v: unknown) => (v == null ? '' : String(v).trim());
+  const levels = state.rooms
+    .filter((r) => r.types.some((t) => t.type_idx === typeIdx))
+    .map((r) => pick(r.level))
+    .filter(Boolean);
+  return [...new Set(levels)];
 }
 
 // ---- Schedule items -------------------------------------------------------

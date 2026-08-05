@@ -1,7 +1,7 @@
 import type { ProjectState } from '../shared/types';
 import {
   settingsOf, roomInvoiceLines, lmCategorySubtotals,
-  roomSummary, roomTypeCounts, roomsOfType, projectTotals, type Settings,
+  roomSummary, roomTypeCounts, roomsOfType, levelsOfType, projectTotals, procurement, type Settings,
 } from '../shared/engine';
 
 const fmtMoney = (n: number) =>
@@ -19,7 +19,8 @@ export type DocKind =
   | { kind: 'total' }
   | { kind: 'room'; typeIdx: number }
   | { kind: 'matrix' }
-  | { kind: 'workbook' };
+  | { kind: 'workbook' }
+  | { kind: 'procurement' };
 
 /** quote = full quote (expiry, client). working = BoM/workbook (no client, no
  *  expiry). matrix = site document: project + client details, no pricing/expiry. */
@@ -118,10 +119,14 @@ function shell(title: string, body: string, state: ProjectState, mode: HeaderMod
     }
     footer { margin-top: 30px; font-size: 10px; color: #67788e; }
     thead { display: table-header-group; }
-    /* keep whole tables (and their bodies / rows) from splitting across pages.
-       An over-long table still breaks — but at row boundaries, with the header
-       repeated — rather than mid-row. */
-    table, tbody, tr { break-inside: avoid; page-break-inside: avoid; }
+    /* keep a row from splitting mid-row across pages. break-inside:avoid on
+       table/tbody themselves (rather than just tr) would instead try to keep
+       the WHOLE table on one page — for a table too long to ever fit one page,
+       that just pushes the entire thing onto the next page, leaving the
+       current one blank underneath whatever precedes it. Row-level only lets
+       an over-long table flow across as many pages as it needs, breaking at
+       row boundaries (header repeated) instead of mid-row. */
+    tr { break-inside: avoid; page-break-inside: avoid; }
     /* keep a heading and its caption lines attached to the table that follows */
     h1, h2, h3, p.muted { break-after: avoid; page-break-after: avoid; }
     .notes-html, .floorplan { break-inside: avoid; page-break-inside: avoid; }
@@ -153,23 +158,24 @@ function roomSummaryTable(state: ProjectState, s: Settings, prices: boolean, hid
   const rows = sum.rows.filter((r) => r.quantity > 0 || r.perRoom !== 0);
   const roomsTh = hideRooms ? '' : '<th>Rooms</th>';
   const roomsTd = (typeIdx: number) => hideRooms ? '' : `<td>${roomsList(roomsOfType(state, typeIdx))}</td>`;
+  const levelTd = (typeIdx: number) => `<td>${esc(levelsOfType(state, typeIdx).join(', ')) || '—'}</td>`;
   if (!prices) {
     return `
       <table>
-        <thead><tr><th>Room Type</th>${roomsTh}<th class="num">Quantity</th></tr></thead>
+        <thead><tr><th>Room Type</th><th>Level</th>${roomsTh}<th class="num">Quantity</th></tr></thead>
         <tbody>
-          ${rows.map((r) => `<tr><td>${esc(r.name)}</td>${roomsTd(r.typeIdx)}
+          ${rows.map((r) => `<tr><td>${esc(r.name)}</td>${levelTd(r.typeIdx)}${roomsTd(r.typeIdx)}
             <td class="num">${r.quantity}</td></tr>`).join('')}
         </tbody>
       </table>`;
   }
-  const span = hideRooms ? 3 : 4; // label columns before the money column
+  const span = hideRooms ? 4 : 5; // label columns before the money column
   return `
     <table>
-      <thead><tr><th>Room Type</th>${roomsTh}<th class="num">Quantity</th>
+      <thead><tr><th>Room Type</th><th>Level</th>${roomsTh}<th class="num">Quantity</th>
         <th class="num">Cost per Room</th><th class="num">Total Cost</th></tr></thead>
       <tbody>
-        ${rows.map((r) => `<tr><td>${esc(r.name)}</td>${roomsTd(r.typeIdx)}
+        ${rows.map((r) => `<tr><td>${esc(r.name)}</td>${levelTd(r.typeIdx)}${roomsTd(r.typeIdx)}
           <td class="num">${r.quantity}</td>
           <td class="num">${fmtMoney(r.perRoom)}</td><td class="num">${fmtMoney(r.total)}</td></tr>`).join('')}
         <tr class="totals"><td colspan="${span}">Total Invoice (Excluding GST)</td><td class="num">${fmtMoney(sum.exGst)}</td></tr>
@@ -214,7 +220,7 @@ function roomInvoiceSection(state: ProjectState, s: Settings, typeIdx: number, p
     <p class="muted">Quantities per room</p>`;
 
   if (!prices) {
-    return `${roomNotesBlock(rt)}${heading}
+    return `${heading}${roomNotesBlock(rt)}
       <table>
         <thead><tr><th class="num">Qty</th><th>Part / Model</th><th>Description</th></tr></thead>
         <tbody>
@@ -227,7 +233,7 @@ function roomInvoiceSection(state: ProjectState, s: Settings, typeIdx: number, p
   const lmSubs = lmCategorySubtotals(state, s, typeIdx).filter((x) => x.amount !== 0);
   const equipSubtotal = lines.reduce((a, l) => a + l.subtotal, 0);
   const exGst = equipSubtotal + lmSubs.reduce((a, l) => a + l.amount, 0);
-  return `${roomNotesBlock(rt)}${heading}
+  return `${heading}${roomNotesBlock(rt)}
     <table>
       <thead><tr><th class="num">Qty</th><th>Part / Model</th><th>Description</th>
         <th class="num">Unit Price</th><th class="num">Subtotal</th></tr></thead>
@@ -275,6 +281,40 @@ function roomMatrixTable(state: ProjectState, availPx = 718): string {
   return `<table class="matrix" style="width:${tableW}px; table-layout:fixed; zoom:${zoom}; --hh:${headH}px">${cols}<thead>${head}</thead><tbody>${rows}${totals}</tbody></table>`;
 }
 
+/** Procurement list — every used item A→Z by supplier, plus per-supplier totals. */
+function procurementTable(state: ProjectState, s: Settings): string {
+  const lines = procurement(state, s);
+  const totalCost = lines.reduce((a, l) => a + l.unitCost * l.qty, 0);
+  const totalSell = lines.reduce((a, l) => a + l.unitSell * l.qty, 0);
+  const bySupplier = new Map<string, { cost: number; sell: number }>();
+  for (const l of lines) {
+    const k = l.supplier || '—';
+    const e = bySupplier.get(k) ?? { cost: 0, sell: 0 };
+    e.cost += l.unitCost * l.qty; e.sell += l.unitSell * l.qty;
+    bySupplier.set(k, e);
+  }
+  return `
+    <table>
+      <thead><tr><th>Supplier</th><th>Manufacturer</th><th class="num">Quantity</th>
+        <th>Part #</th><th>Description</th><th class="num">Cost</th><th class="num">Sell price</th></tr></thead>
+      <tbody>
+        ${lines.map((l) => `<tr><td>${esc(l.supplier)}</td><td>${esc(l.manufacturer)}</td>
+          <td class="num">${l.qty}</td><td>${esc(l.partNumber)}</td><td>${esc(l.description)}</td>
+          <td class="num">${fmtMoney(l.unitCost)}</td><td class="num">${fmtMoney(l.unitSell)}</td></tr>`).join('')}
+        <tr class="totals"><td colspan="5">Total (Quantity × unit)</td>
+          <td class="num">${fmtMoney(totalCost)}</td><td class="num">${fmtMoney(totalSell)}</td></tr>
+      </tbody>
+    </table>
+    <h3>Per-supplier totals</h3>
+    <table>
+      <thead><tr><th>Supplier</th><th class="num">Total Cost</th><th class="num">Total Sell</th></tr></thead>
+      <tbody>
+        ${[...bySupplier].map(([supplier, x]) => `<tr><td>${esc(supplier)}</td>
+          <td class="num">${fmtMoney(x.cost)}</td><td class="num">${fmtMoney(x.sell)}</td></tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
 export function renderDocument(
   state: ProjectState,
   doc: DocKind,
@@ -288,6 +328,12 @@ export function renderDocument(
   if (doc.kind === 'matrix') {
     const body = roomMatrixTable(state, 1047); // prints landscape
     return { title: 'Room Matrix', html: shell('Room Matrix', body, state, 'matrix') };
+  }
+
+  if (doc.kind === 'procurement') {
+    const title = 'Procurement';
+    const body = procurementTable(state, s);
+    return { title, html: shell(title, body, state, 'working') };
   }
 
   // Workbook: room summary first, then a page per room type (invoice with

@@ -2,10 +2,16 @@ import { useProject, fmtMoney } from '../state';
 import { settingsOf, procurement } from '@shared/engine';
 
 export default function Procurement() {
-  const { state } = useProject();
+  const { state, path, dirty, saveNow } = useProject();
   if (!state) return null;
   const s = settingsOf(state);
   const lines = procurement(state, s); // already sorted by supplier A→Z
+
+  const openExport = async (base: 'pdf' | 'xlsx') => {
+    if (!path) return;
+    if (dirty) await saveNow(); // export renders from the saved file
+    window.open(`/api/${base}?path=${encodeURIComponent(path)}&doc=procurement`, '_blank');
+  };
 
   const totalCost = lines.reduce((a, l) => a + l.unitCost * l.qty, 0);
   const totalSell = lines.reduce((a, l) => a + l.unitSell * l.qty, 0);
@@ -34,6 +40,11 @@ export default function Procurement() {
         </div>
       ) : (
         <>
+          <div className="toolbar">
+            <button className="btn" onClick={() => openExport('pdf')}>Export PDF</button>
+            <button className="btn secondary" onClick={() => openExport('xlsx')}>Export Excel</button>
+          </div>
+
           <div className="panel scroll-x">
             <table className="grid nowrap">
               <thead>

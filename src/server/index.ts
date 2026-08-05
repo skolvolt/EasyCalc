@@ -387,7 +387,9 @@ const parseDoc = (q: { doc?: string; typeIdx?: string }): DocKind =>
         ? { kind: 'matrix' }
         : q.doc === 'workbook'
           ? { kind: 'workbook' }
-          : { kind: 'summary' };
+          : q.doc === 'procurement'
+            ? { kind: 'procurement' }
+            : { kind: 'summary' };
 
 /**
  * Standardised export filename from the dashboard entries, e.g.
@@ -418,7 +420,9 @@ function standardFilename(state: ProjectState, doc: DocKind, prices: boolean, ex
           ? (prices ? 'ROOMSUMMARY' : 'ROOMSCHEDULE')
           : doc.kind === 'room'
             ? (prices ? 'ROOMINVOICE' : 'BILLOFMATERIALS') + (rt ? '-' + seg(rt.name) : '')
-            : (prices ? 'TOTALINVOICE' : 'WORKBOOK');
+            : doc.kind === 'procurement'
+              ? 'PROCUREMENT'
+              : (prices ? 'TOTALINVOICE' : 'WORKBOOK');
   return `${[jo, client, site, ver, initials, date, docLabel].join('_')}.${ext}`;
 }
 

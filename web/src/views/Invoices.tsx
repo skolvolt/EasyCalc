@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useProject, fmtMoney } from '../state';
 import {
   settingsOf, roomInvoiceLines, totalInvoiceLines, lmCategorySubtotals,
-  roomSummary, roomTypeCounts, roomsOfType,
+  roomSummary, roomTypeCounts, roomsOfType, levelsOfType,
 } from '@shared/engine';
 import RichText from '../components/RichText';
 
@@ -266,6 +266,7 @@ export default function Invoices() {
             <thead>
               <tr>
                 <th>Room Type</th>
+                <th>Level</th>
                 {!hideRoomNums && <th>Rooms</th>}
                 <th className="num">Quantity</th>
                 <th className="num">Cost per Room</th>
@@ -278,6 +279,7 @@ export default function Invoices() {
                 .map((r) => (
                   <tr key={r.typeIdx}>
                     <td>{r.name}</td>
+                    <td>{levelsOfType(state, r.typeIdx).join(', ') || '—'}</td>
                     {!hideRoomNums && <td>{roomsVertical(r.typeIdx)}</td>}
                     <td className="num">{r.quantity}</td>
                     <td className="num">{fmtMoney(r.perRoom)}</td>
@@ -285,15 +287,15 @@ export default function Invoices() {
                   </tr>
                 ))}
               <tr className="totals">
-                <td colSpan={hideRoomNums ? 3 : 4}>Total Invoice (Excluding GST)</td>
+                <td colSpan={hideRoomNums ? 4 : 5}>Total Invoice (Excluding GST)</td>
                 <td className="num">{fmtMoney(summary.exGst)}</td>
               </tr>
               <tr>
-                <td colSpan={hideRoomNums ? 3 : 4}>GST</td>
+                <td colSpan={hideRoomNums ? 4 : 5}>GST</td>
                 <td className="num">{fmtMoney(summary.gst)}</td>
               </tr>
               <tr className="totals">
-                <td colSpan={hideRoomNums ? 3 : 4}>Total Invoice (Including GST)</td>
+                <td colSpan={hideRoomNums ? 4 : 5}>Total Invoice (Including GST)</td>
                 <td className="num">{fmtMoney(summary.incGst)}</td>
               </tr>
             </tbody>

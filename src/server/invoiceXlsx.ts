@@ -6,7 +6,7 @@ import type { ProjectState } from '../shared/types';
 const XLSX = ((XLSXns as unknown as { default?: typeof XLSXns }).default ?? XLSXns);
 import {
   settingsOf, roomInvoiceLines, lmCategorySubtotals, roomSummary,
-  roomTypeCounts, roomsOfType, projectTotals, type Settings,
+  roomTypeCounts, roomsOfType, levelsOfType, projectTotals, procurement, type Settings,
 } from '../shared/engine';
 import type { DocKind } from './invoiceHtml';
 
@@ -228,24 +228,25 @@ function fillRoomInvoice(b: ReturnType<typeof sheet>, state: ProjectState, s: Se
 function fillRoomSummary(b: ReturnType<typeof sheet>, state: ProjectState, s: Settings, hideRooms = false) {
   const sum = roomSummary(state, s);
   const rows = sum.rows.filter((r) => r.quantity > 0 || r.perRoom !== 0);
+  const level = (typeIdx: number) => levelsOfType(state, typeIdx).join(', ') || '—';
   if (hideRooms) {
-    b.head(['Room Type', 'Quantity', 'Cost per Room', 'Total Cost'], new Set([1, 2, 3]));
+    b.head(['Room Type', 'Level', 'Quantity', 'Cost per Room', 'Total Cost'], new Set([2, 3, 4]));
     for (const r of rows) {
-      b.data([r.name, r.quantity, r.perRoom, r.total], new Set([2, 3]), new Set([1]));
+      b.data([r.name, level(r.typeIdx), r.quantity, r.perRoom, r.total], new Set([3, 4]), new Set([2]));
     }
-    b.total('Total Invoice (Excluding GST)', sum.exGst, 3);
-    b.line('GST', sum.gst, 3);
-    b.total('Total Invoice (Including GST)', sum.incGst, 3);
+    b.total('Total Invoice (Excluding GST)', sum.exGst, 4);
+    b.line('GST', sum.gst, 4);
+    b.total('Total Invoice (Including GST)', sum.incGst, 4);
     return;
   }
-  b.head(['Room Type', 'Rooms', 'Quantity', 'Cost per Room', 'Total Cost'], new Set([2, 3, 4]));
+  b.head(['Room Type', 'Level', 'Rooms', 'Quantity', 'Cost per Room', 'Total Cost'], new Set([3, 4, 5]));
   for (const r of rows) {
     const rooms = roomsOfType(state, r.typeIdx).join('\n') || '—';
-    b.data([r.name, rooms, r.quantity, r.perRoom, r.total], new Set([3, 4]), new Set([2]), new Set([1]));
+    b.data([r.name, level(r.typeIdx), rooms, r.quantity, r.perRoom, r.total], new Set([4, 5]), new Set([3]), new Set([2]));
   }
-  b.total('Total Invoice (Excluding GST)', sum.exGst, 4);
-  b.line('GST', sum.gst, 4);
-  b.total('Total Invoice (Including GST)', sum.incGst, 4);
+  b.total('Total Invoice (Excluding GST)', sum.exGst, 5);
+  b.line('GST', sum.gst, 5);
+  b.total('Total Invoice (Including GST)', sum.incGst, 5);
 }
 
 function fillProjectTotals(b: ReturnType<typeof sheet>, state: ProjectState, s: Settings) {
@@ -258,6 +259,30 @@ function fillProjectTotals(b: ReturnType<typeof sheet>, state: ProjectState, s: 
   b.total('Total (Excluding GST)', t.revenue, 1);
   b.line('GST', gst, 1);
   b.total('Total (Including GST)', t.revenue + gst, 1);
+}
+
+/** Procurement list — every used item A→Z by supplier, plus per-supplier totals. */
+function fillProcurement(b: ReturnType<typeof sheet>, state: ProjectState, s: Settings) {
+  const lines = procurement(state, s);
+  const totalCost = lines.reduce((a, l) => a + l.unitCost * l.qty, 0);
+  const totalSell = lines.reduce((a, l) => a + l.unitSell * l.qty, 0);
+  b.head(['Supplier', 'Manufacturer', 'Quantity', 'Part #', 'Description', 'Cost', 'Sell price'], new Set([2, 5, 6]));
+  for (const l of lines)
+    b.data([l.supplier, l.manufacturer, l.qty, l.partNumber, l.description, l.unitCost, l.unitSell], new Set([5, 6]), new Set([2]));
+  b.data(['Total (Quantity × unit)', '', '', '', '', totalCost, totalSell], new Set([5, 6]), new Set());
+}
+
+function fillSupplierTotals(b: ReturnType<typeof sheet>, state: ProjectState, s: Settings) {
+  const lines = procurement(state, s);
+  const bySupplier = new Map<string, { cost: number; sell: number }>();
+  for (const l of lines) {
+    const k = l.supplier || '—';
+    const e = bySupplier.get(k) ?? { cost: 0, sell: 0 };
+    e.cost += l.unitCost * l.qty; e.sell += l.unitSell * l.qty;
+    bySupplier.set(k, e);
+  }
+  b.head(['Supplier', 'Total Cost', 'Total Sell'], new Set([1, 2]));
+  for (const [supplier, x] of bySupplier) b.data([supplier, x.cost, x.sell], new Set([1, 2]), new Set());
 }
 
 /** Build a styled .xlsx workbook for an invoice document. */
@@ -275,7 +300,7 @@ export function renderWorkbook(
   let title: string;
   if (doc.kind === 'summary') {
     title = 'Room Summary';
-    const b = heading(sheet(opts.hideRooms ? 4 : 5), state, 'Room Summary');
+    const b = heading(sheet(opts.hideRooms ? 5 : 6), state, 'Room Summary');
     b.blank();
     fillRoomSummary(b, state, s, opts.hideRooms);
     add('Room Summary', b.build());
@@ -314,6 +339,15 @@ export function renderWorkbook(
     }
     b.data(['Total rooms per type', '', '', ...types.map((t) => counts[t.idx] || '')], new Set(), numCols);
     add('Room Matrix', b.build());
+  } else if (doc.kind === 'procurement') {
+    title = 'Procurement';
+    const b = heading(sheet(7), state, 'Procurement');
+    b.blank();
+    fillProcurement(b, state, s);
+    add('Procurement', b.build());
+    const supB = sheet(3).title('Per-supplier totals').blank();
+    fillSupplierTotals(supB, state, s);
+    add('Per-supplier totals', supB.build());
   } else {
     title = 'Total Project Invoice';
     const totalsB = heading(sheet(2), state, 'Total Project Invoice');
@@ -321,7 +355,7 @@ export function renderWorkbook(
     fillProjectTotals(totalsB, state, s);
     add('Project Totals', totalsB.build());
 
-    const summaryB = sheet(5).title('Room Summary').blank();
+    const summaryB = sheet(6).title('Room Summary').blank();
     fillRoomSummary(summaryB, state, s);
     add('Room Summary', summaryB.build());
 
