@@ -2,6 +2,22 @@
 
 All notable changes to EasyCalc. Newest first.
 
+## 0.4.2
+
+**Rooms & Invoices**
+- **Room Summary got a Level column.** Previously, if a room had no Room No. or Area entered, its Level value leaked into the "Rooms" column instead — that fallback is gone, and Level now shows properly in its own column (app, PDF, Excel).
+- **Room invoices/BoMs**: the room's title and info now always render first on the page — notes and the floorplan image no longer appear above it.
+- **Long printed tables no longer leave a blank page.** A table too long to fit on one page was being pushed onto a fresh page entirely (leaving the previous page blank underneath its heading) instead of simply flowing across pages at row boundaries — fixed for every export.
+
+**Procurement**
+- **Export PDF / Export Excel** buttons, matching the on-screen list plus per-supplier totals.
+
+**Copy / paste**
+- **Selecting cells and pressing Ctrl+C now actually reaches the clipboard** — copy silently did nothing before (the browser never saw a real selection to copy), on every grid, including a single unselected cell.
+- Copy now writes **both plain text and a real HTML table**, so pasting into Excel, Word, or email lands as an actual formatted table, not raw tab-separated text.
+- Copying now also works on **read-only tables** like Procurement, not just editable grids.
+- **Right-click no longer clears your selection** before the menu opens, and **click-and-drag selects in one motion again** (a regression introduced while fixing the above).
+
 ## 0.4.1
 
 **Labour & Materials**
