@@ -200,20 +200,31 @@ function useSpreadsheetGrid() {
     // "Copy" look enabled while actually copying nothing; there, Ctrl+C
     // (handled ourselves) stays the only real path and native Copy stays
     // honestly disabled.
+    // Only ever clear a Selection we put here ourselves. Clearing
+    // unconditionally wiped the caret the browser had just placed in a clicked
+    // cell — mouseup fires after focus, so the field stayed focused but lost
+    // its cursor and you couldn't type.
+    let nativeRange = false;
+    const dropNativeRange = () => {
+      if (!nativeRange) return;
+      window.getSelection()?.removeAllRanges();
+      nativeRange = false;
+    };
     const syncNativeSelection = () => {
-      const sel = window.getSelection();
-      sel?.removeAllRanges();
-      if (!selAnchor || !selHead || selAnchor.table !== selHead.table) return;
+      if (!selAnchor || !selHead || selAnchor.table !== selHead.table) return dropNativeRange();
       const t = selAnchor.table;
-      if (t.querySelector('input')) return;
+      if (t.querySelector('input')) return dropNativeRange();
       const r1 = Math.min(selAnchor.r, selHead.r), r2 = Math.max(selAnchor.r, selHead.r);
       const c1 = Math.min(selAnchor.c, selHead.c), c2 = Math.max(selAnchor.c, selHead.c);
       const startTd = cellAt(t, r1, c1), endTd = cellAt(t, r2, c2);
-      if (!startTd || !endTd) return;
+      if (!startTd || !endTd) return dropNativeRange();
       const range = document.createRange();
       range.setStartBefore(startTd);
       range.setEndAfter(endTd);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
       sel?.addRange(range);
+      nativeRange = true;
     };
     const clearSel = () => { selAnchor = null; selHead = null; clearHi(); syncNativeSelection(); };
     const drawHi = () => {

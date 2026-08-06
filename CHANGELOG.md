@@ -2,6 +2,10 @@
 
 All notable changes to EasyCalc. Newest first.
 
+## 0.4.4
+
+**Fixed**: clicking into a cell on the Equipment Schedule (or any spreadsheet grid) left the field focused but with **no typing cursor**, so you couldn't type into it. Releasing the mouse button was clearing the text cursor the click had just placed. Affected every grid field; normal fields were unaffected. Cell selection, drag-select and copy are unchanged.
+
 ## 0.4.3
 
 **Fixed**: selecting text in a normal field (Dashboard's Project Details or Branding sections, for example) would highlight fine while dragging, then lose the selection the instant you let go of the mouse button — making it impossible to copy or paste there. That's fixed; unrelated to the spreadsheet-grid copy work in 0.4.2, which is untouched.
