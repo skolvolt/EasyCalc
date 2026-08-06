@@ -2,6 +2,10 @@
 
 All notable changes to EasyCalc. Newest first.
 
+## 0.4.3
+
+**Fixed**: selecting text in a normal field (Dashboard's Project Details or Branding sections, for example) would highlight fine while dragging, then lose the selection the instant you let go of the mouse button — making it impossible to copy or paste there. That's fixed; unrelated to the spreadsheet-grid copy work in 0.4.2, which is untouched.
+
 ## 0.4.2
 
 **Rooms & Invoices**
