@@ -403,7 +403,15 @@ function useSpreadsheetGrid() {
         drawHi();
       }
     };
-    const onMouseUp = () => { dragAnchor = null; syncNativeSelection(); };
+    const onMouseUp = () => {
+      // dragAnchor is only ever set when the mousedown that started this drag
+      // landed on a grid cell (see onMouseDown) — gate on it so a completely
+      // ordinary text-selection drag in a normal field (Dashboard's Project
+      // Details/Branding inputs, etc.) doesn't get its just-made selection
+      // wiped by syncNativeSelection's removeAllRanges() on release.
+      if (dragAnchor) syncNativeSelection();
+      dragAnchor = null;
+    };
 
     const onKey = (e: KeyboardEvent) => {
       // Escape cancels the current cell selection (range + focused cell).
