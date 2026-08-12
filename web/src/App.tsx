@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useProject, isEmbedded } from './state';
 import { roomTypeCounts } from '@shared/engine';
-import { registerSelectRow } from './gridSelection';
+import { registerSelectRow, publishSelectionSummary } from './gridSelection';
+import SelectionSummary from './components/SelectionSummary';
 import ScrollTopButton from './components/ScrollTopButton';
 import UpdateDialog from './components/UpdateDialog';
 import ClientLogo from './components/ClientLogo';
@@ -226,7 +227,9 @@ function useSpreadsheetGrid() {
       sel?.addRange(range);
       nativeRange = true;
     };
-    const clearSel = () => { selAnchor = null; selHead = null; clearHi(); syncNativeSelection(); };
+    const clearSel = () => {
+      selAnchor = null; selHead = null; clearHi(); syncNativeSelection(); summarize();
+    };
     const drawHi = () => {
       // syncNativeSelection is NOT called here — setting a real Selection on
       // every mouseover while a drag is in progress fights the browser's own
@@ -235,12 +238,13 @@ function useSpreadsheetGrid() {
       // click to "kick" it loose). It runs once, on mouseup, once the
       // selection has settled — see onMouseUp.
       clearHi();
-      if (!selAnchor || !selHead || selAnchor.table !== selHead.table) return;
+      if (!selAnchor || !selHead || selAnchor.table !== selHead.table) return summarize();
       const t = selAnchor.table;
       const r1 = Math.min(selAnchor.r, selHead.r), r2 = Math.max(selAnchor.r, selHead.r);
       const c1 = Math.min(selAnchor.c, selHead.c), c2 = Math.max(selAnchor.c, selHead.c);
-      if (r1 === r2 && c1 === c2) return; // single cell — rely on :focus outline
+      if (r1 === r2 && c1 === c2) return summarize(); // single cell — rely on :focus outline
       for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) cellAt(t, r, c)?.classList.add('cell-sel');
+      summarize();
     };
 
     // Next cell holding an input in a direction. Rows without an input at the
@@ -282,6 +286,36 @@ function useSpreadsheetGrid() {
     const isMultiSel = () =>
       !!(selAnchor && selHead && selAnchor.table === selHead.table
         && !(selAnchor.r === selHead.r && selAnchor.c === selHead.c));
+
+    /** Count + total the current selection for the floating summary box.
+     *  Editable money cells hold display-currency numbers and read-only ones
+     *  render with a symbol already, so the total is in display currency
+     *  either way — hence fmtMoneyDisplay, not fmtMoney, at the render end. */
+    const summarize = () => {
+      const R = rect();
+      if (!R || !isMultiSel()) { publishSelectionSummary(null); return; }
+      let cells = 0, numeric = 0, sum = 0, moneyCells = 0;
+      for (let r = R.r1; r <= R.r2; r++) {
+        for (let c = R.c1; c <= R.c2; c++) {
+          const td = cellAt(R.table, r, c);
+          if (!td || td.style.display === 'none') continue; // filter-hidden column
+          cells++;
+          const inp = inputAt(R.table, r, c);
+          const text = (inp ? inp.value : td.textContent ?? '').trim();
+          if (!text || !/\d/.test(text)) continue;
+          // strip thousands separators and any currency/percent decoration
+          const n = Number(text.replace(/[^\d.-]/g, ''));
+          if (!Number.isFinite(n)) continue;
+          numeric++;
+          sum += n;
+          if (inp ? inp.dataset.money === '1' : /[$€£¥]/.test(text)) moneyCells++;
+        }
+      }
+      publishSelectionSummary({
+        cells, numeric, sum,
+        money: numeric > 0 && moneyCells === numeric,
+      });
+    };
 
     // A cell's copyable value: an input's live value where one exists, else
     // its plain text (read-only display tables — Procurement, summaries —
@@ -340,11 +374,13 @@ function useSpreadsheetGrid() {
           for (let gc = 0; gc < grid[gr].length; gc++) setCell(R.table, targetRows[gr], R.c1 + gc, grid[gr][gc]);
         }
       }
+      summarize(); // values changed under a live selection
     };
 
     const clearRange = () => {
       const R = rect(); if (!R) return;
       for (let r = R.r1; r <= R.r2; r++) for (let c = R.c1; c <= R.c2; c++) setCell(R.table, r, c, '');
+      summarize(); // values changed under a live selection
     };
 
     const inCellTextSelection = () => {
@@ -503,6 +539,7 @@ function useSpreadsheetGrid() {
       document.removeEventListener('keydown', onKey);
       document.removeEventListener('paste', onPaste);
       clearHi();
+      publishSelectionSummary(null);
     };
   }, []);
 }
@@ -712,6 +749,7 @@ export default function App() {
         </div>
       )}
       <ScrollTopButton />
+      <SelectionSummary />
       {showUpdates && <UpdateDialog onClose={() => setShowUpdates(false)} />}
     </div>
   );

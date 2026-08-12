@@ -396,6 +396,21 @@ tr.sec-head td .caret { display: inline-block; width: 14px; }
 }
 .scroll-top-btn:hover { filter: brightness(1.12); }
 
+/* selection readout — cells selected + their total. Sits clear of the
+   back-to-top button (24px + its 46px width + a gap) so the two never
+   overlap when both are showing. */
+.sel-summary {
+  position: fixed; bottom: 24px; right: 82px; z-index: 100;
+  display: flex; align-items: baseline; gap: 16px;
+  padding: 8px 14px; border-radius: 8px;
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.22);
+  font-size: 13px; white-space: nowrap;
+  pointer-events: none; /* never steals a click aimed at the grid */
+}
+.sel-summary b { font-weight: 700; font-variant-numeric: tabular-nums; }
+
 /* embedded (standalone HTML) banner */
 .embedded-banner {
   background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent);
@@ -491,7 +506,11 @@ table.grid td.cell-sel {
    enabled/functional there instead of always greyed out — see
    syncNativeSelection in App.tsx. Hidden so it doesn't double up visually
    with .cell-sel. */
-table.grid ::selection { background: transparent; }
+/* Read-only grids only (:not(:has(input))). Applying this to every table.grid
+   descendant also hid the ordinary text-selection highlight inside editable
+   cells' <input>s — selecting text there looked like nothing happened.
+   Editable grids never get a synthetic selection, so they need no hiding. */
+table.grid:not(:has(input)) ::selection { background: transparent; }
 
 /* ---- orphan allocation: red text when the system type has no rooms ---- */
 /* a value typed into a type column whose type isn't assigned to any room */

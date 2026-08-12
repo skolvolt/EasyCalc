@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { recordCell, cellHistory } from '../cellHistory';
+import { toDisplayNum } from '../state';
 
 /**
  * Numeric input that lets you actually type decimals.
@@ -108,6 +109,11 @@ export default function NumInput({
     <>
       <input
         className={(className ?? '') + (invalid ? ' num-error' : '')}
+        /* Money fields are exactly the ones formatted with toDisplayNum, so
+           tagging here marks every one across all views from a single place —
+           the selection summary reads this to decide whether to total a
+           selection as currency or as a plain number. */
+        data-money={format === toDisplayNum ? '1' : undefined}
         placeholder={placeholder}
         title={
           invalid

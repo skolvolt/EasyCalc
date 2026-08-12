@@ -49,11 +49,18 @@ Type: files; Name: "{app}\node\node.exe"
 Source: "..\package-build\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
+; AppUserModelID must match the one Edge assigns the --app window, or the
+; taskbar falls back to the Edge icon (IconFilename only skins the shortcut
+; itself). Windows resolves a taskbar group's icon via the Start Menu shortcut
+; carrying the same AUMID. Measured from a live window; the form is
+; <BaseAppId>.<app_name>.<user-data-dir>.<profile> and carries no port number,
+; so it is stable. Keep it in step with the --app URL and --user-data-dir in
+; EasyCalc.vbs — change either and this must change too.
 ; Primary launcher: EasyCalc.vbs → hidden console + own app window.
-Name: "{group}\EasyCalc";        Filename: "{app}\EasyCalc.vbs"; IconFilename: "{app}\EasyCalc.ico"; WorkingDir: "{app}"; Comment: "Launch EasyCalc"
+Name: "{group}\EasyCalc";        Filename: "{app}\EasyCalc.vbs"; IconFilename: "{app}\EasyCalc.ico"; WorkingDir: "{app}"; Comment: "Launch EasyCalc"; AppUserModelID: "MSEdge.localhost_/.window.Default"
 Name: "{group}\EasyCalc (troubleshoot console)"; Filename: "{app}\start.bat"; IconFilename: "{app}\EasyCalc.ico"; WorkingDir: "{app}"; Comment: "Launch EasyCalc with a visible console for debugging"
 Name: "{group}\Uninstall EasyCalc"; Filename: "{uninstallexe}"
-Name: "{userdesktop}\EasyCalc";  Filename: "{app}\EasyCalc.vbs"; IconFilename: "{app}\EasyCalc.ico"; WorkingDir: "{app}"; Comment: "Launch EasyCalc"; Tasks: desktopicon
+Name: "{userdesktop}\EasyCalc";  Filename: "{app}\EasyCalc.vbs"; IconFilename: "{app}\EasyCalc.ico"; WorkingDir: "{app}"; Comment: "Launch EasyCalc"; Tasks: desktopicon; AppUserModelID: "MSEdge.localhost_/.window.Default"
 
 [Run]
 ; Launch via wscript.exe — Inno's default CreateProcess can't execute a .vbs

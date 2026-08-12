@@ -2,6 +2,14 @@
 
 All notable changes to EasyCalc. Newest first.
 
+## 0.4.5
+
+**New: selection totals.** Select two or more cells in any grid and a small panel appears at the bottom right showing **how many cells are selected and what they add up to**. Money columns total in the project's currency; quantities and other numbers total as plain figures. Works on read-only tables like Procurement too.
+
+**Fixed**: selecting text *inside* a table cell showed no blue highlight — you could select and copy, but nothing appeared selected. Normal fields outside tables were unaffected. Introduced in 0.4.2 alongside the copy/paste work.
+
+**Fixed**: the taskbar and window icon showed the Microsoft Edge logo instead of the EasyCalc icon.
+
 ## 0.4.4
 
 **Fixed**: clicking into a cell on the Equipment Schedule (or any spreadsheet grid) left the field focused but with **no typing cursor**, so you couldn't type into it. Releasing the mouse button was clearing the text cursor the click had just placed. Affected every grid field; normal fields were unaffected. Cell selection, drag-select and copy are unchanged.

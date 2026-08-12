@@ -392,12 +392,17 @@ export function setDisplayCurrency(code: string, rate: number) {
 }
 export const currentCurrency = () => CUR.code;
 
-export const fmtMoney = (n: number) =>
-  (n * CUR.rate).toLocaleString('en-AU', {
+/** Format a value that is ALREADY in the display currency. Editable money
+ *  fields hold display-currency numbers (see toDisplayNum), so totalling them
+ *  and passing the result to fmtMoney would apply the FX rate a second time. */
+export const fmtMoneyDisplay = (n: number) =>
+  n.toLocaleString('en-AU', {
     style: 'currency',
     currency: CUR.code,
     maximumFractionDigits: 2,
   });
+/** Format a stored base-currency value (converts at the live rate). */
+export const fmtMoney = (n: number) => fmtMoneyDisplay(n * CUR.rate);
 export const fmtPct = (n: number) => `${(n * 100).toFixed(1)}%`;
 
 /** base value -> number shown in an editable field (display currency) */
