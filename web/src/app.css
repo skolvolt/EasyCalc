@@ -348,6 +348,20 @@ body.dark .room-matrix tr.mx-count td { background: #223047; }
 .scroll-top { overflow-x: auto; overflow-y: hidden; }
 .scroll-top > div { height: 1px; }
 
+/* Sticky cells and collapsed borders don't mix. Under border-collapse the line
+   between two cells belongs to the *table*, not to either cell, so it stays
+   with the scrolling content instead of travelling with the frozen column —
+   leaving a 1px hole down every column line that the rows underneath showed
+   through, like thin windows behind the frozen block. Separate borders are
+   painted by each cell, so a sticky cell carries its own. Zero spacing plus
+   right/bottom-only borders keeps the grid looking exactly as before. */
+table.grid.freeze { border-collapse: separate; border-spacing: 0; }
+table.grid.freeze th, table.grid.freeze td {
+  border: 0;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
 /* freeze the first four columns while scrolling right */
 table.grid.freeze th:nth-child(-n+4),
 table.grid.freeze td:nth-child(-n+4) {
@@ -368,7 +382,8 @@ table.grid.freeze th:nth-child(4), table.grid.freeze td:nth-child(4) {
   border-right: 2px solid var(--line);
 }
 table.grid.freeze td.desc input { min-width: 0; }
-/* section / subcategory header rows span full width — don't freeze them.
+/* section / subcategory header rows span the full width, so the *cell* can't
+   usefully stick — .row-label inside it does the sticking instead (see below).
    Re-assert their colours here so the frozen-column `background: var(--panel)`
    rule above doesn't win (it did in light mode → white text on white). */
 table.grid.freeze tr.subcat td, table.grid.freeze tr.sec-head td { position: static; }
@@ -384,6 +399,15 @@ tr.sec-head td {
 }
 body.dark tr.sec-head td { background: #223047; }
 tr.sec-head td .caret { display: inline-block; width: 14px; }
+
+/* Section / subcategory titles stay put when the grid scrolls sideways. The
+   cell spans every column, so pinning the cell does nothing — the label inside
+   it sticks to the left edge of the scroll box instead. */
+tr.sec-head td > .row-label,
+tr.subcat td > .row-label {
+  position: sticky; left: 8px; /* matches the cell's 8px padding */
+  display: inline-flex; align-items: center; gap: 6px;
+}
 
 /* floating "back to top" button */
 .scroll-top-btn {
@@ -420,7 +444,14 @@ tr.sec-head td .caret { display: inline-block; width: 14px; }
 /* ---- Schedule: freeze the header row (column titles) on vertical scroll ---- */
 /* Divide the body zoom back out (like the sidebar) so the table bottom stays
    pinned to the viewport bottom at any zoom level. */
-.scroll-x.freeze-scroll { max-height: calc(100vh / var(--ui-zoom, 1) - 230px); overflow: auto; }
+.scroll-x.freeze-scroll {
+  max-height: calc(100vh / var(--ui-zoom, 1) - 230px); overflow: auto;
+  /* No side padding: a sticky cell anchors to the *content* box, but overflow
+     clips at the *padding* box, so any horizontal padding is a strip the frozen
+     columns cannot reach — and the scrolling rows slide through it in plain
+     sight. Keeping the sides flush closes that gap. */
+  padding-left: 0; padding-right: 0;
+}
 table.grid.freeze thead th { position: sticky; top: 0; z-index: 3; }
 /* frozen-column header cells sit above the left-sticky body cells */
 table.grid.freeze thead th:nth-child(-n+4) { z-index: 6; }

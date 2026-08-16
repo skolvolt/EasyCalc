@@ -2,6 +2,21 @@
 
 All notable changes to EasyCalc. Newest first.
 
+## 0.4.6
+
+**Fixed: category contingency now works on every category.** Setting a contingency on **Installation** — or any labour category — did nothing to the totals. Labour prices had the contingency baked in at the moment you typed a mark-up, so the stored price kept whichever contingency was set that day and later changes to the field had no effect. Contingency is now applied when the numbers are calculated, exactly as it already worked for Equipment, so changing it re-prices everything live.
+
+> ⚠️ **If a project already has a contingency set above 0**, its labour prices contain that percentage twice over — once baked in, once applied — and will read higher when you open it in this version. Set the contingency back to 0 and re-enter it to correct those rows. Projects with every contingency at 0 (the default) are unaffected.
+
+Contingency also now matches categories whose names carry stray spacing (`"Installation "` from an imported list), which previously missed entirely while revenue was still attributed to it.
+
+**New: pages remember where you were.** Leave **Quotes & Invoices** on the Room Invoice tab with a room selected, go to the Dashboard and come back — it returns exactly as you left it. Same for the Equipment Schedule's section filter, search, hidden columns and collapsed sections. Resets when you open a different project.
+
+**Equipment Schedule — frozen columns**
+- **Section and subcategory titles stay in view** when scrolling sideways instead of sliding off to the left.
+- **No more see-through gaps.** Scrolling sideways showed thin slivers of the moving rows through the column lines of the frozen block, and a wider strip down its left edge.
+- **Column resize handles are easier to grab** — the grab zone no longer vanishes exactly on the dividing line.
+
 ## 0.4.5
 
 **New: selection totals.** Select two or more cells in any grid and a small panel appears at the bottom right showing **how many cells are selected and what they add up to**. Money columns total in the project's currency; quantities and other numbers total as plain figures. Works on read-only tables like Procurement too.

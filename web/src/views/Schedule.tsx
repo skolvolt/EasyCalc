@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSticky } from '../viewMemory';
 import {
   useProject, fmtMoney, fmtPct, pctIn, pctOut, toDisplayNum, fromDisplayNum, numFmt, numParse, isEmbedded,
 } from '../state';
@@ -183,17 +184,19 @@ function PricelistPanel() {
 
 export default function Schedule({ orphanFilter = false }: { orphanFilter?: boolean }) {
   const { state, update } = useProject();
-  const [section, setSection] = useState<string>('All');
-  const [search, setSearch] = useState('');
-  const [showEmpty, setShowEmpty] = useState(true);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // where you were on this page — remembered across navigation (viewMemory)
+  const [section, setSection] = useSticky<string>('schedule.section', 'All');
+  const [search, setSearch] = useSticky('schedule.search', '');
+  const [showEmpty, setShowEmpty] = useSticky('schedule.showEmpty', true);
+  const [collapsed, setCollapsed] = useSticky<Set<string>>('schedule.collapsed', new Set());
+  const [hiddenCols, setHiddenCols] = useSticky<Set<string>>('schedule.hiddenCols', new Set());
   const bottomRef = useRef<HTMLDivElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
+  // transient — these should always start clean on entering the page
   const [scrollW, setScrollW] = useState(0);
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmClearColors, setConfirmClearColors] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
   if (!state) return null;
 
   // Column show/hide (Filters menu). Hidden columns use display:none so cell
@@ -587,15 +590,20 @@ export default function Schedule({ orphanFilter = false }: { orphanFilter?: bool
               const out: React.ReactNode[] = [
                 <tr className="sec-head" key={'sec' + g.section} onClick={() => toggle(g.section)}>
                   <td colSpan={nCols}>
-                    <span className="caret">{isCollapsed ? '▸' : '▾'}</span>
-                    {g.section} <span style={{ opacity: 0.8, fontWeight: 400 }}>({g.rows.length})</span>
-                    <button
-                      className="sec-add"
-                      title={`Add a new row to ${g.section}`}
-                      onClick={(e) => { e.stopPropagation(); addRowToSection(g.section); }}
-                    >
-                      + Add row
-                    </button>
+                    {/* pinned so the section title stays readable when the grid
+                        is scrolled sideways — the cell spans the full width, so
+                        the label sticks rather than the cell */}
+                    <span className="row-label">
+                      <span className="caret">{isCollapsed ? '▸' : '▾'}</span>
+                      {g.section} <span style={{ opacity: 0.8, fontWeight: 400 }}>({g.rows.length})</span>
+                      <button
+                        className="sec-add"
+                        title={`Add a new row to ${g.section}`}
+                        onClick={(e) => { e.stopPropagation(); addRowToSection(g.section); }}
+                      >
+                        + Add row
+                      </button>
+                    </span>
                   </td>
                 </tr>,
               ];
@@ -607,7 +615,7 @@ export default function Schedule({ orphanFilter = false }: { orphanFilter?: bool
                   lastSub = item.subcategory;
                   out.push(
                     <tr className="subcat" key={'sub' + i}>
-                      <td colSpan={nCols}>{item.subcategory}</td>
+                      <td colSpan={nCols}><span className="row-label">{item.subcategory}</span></td>
                     </tr>,
                   );
                 }

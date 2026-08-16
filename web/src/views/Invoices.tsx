@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { useProject, fmtMoney } from '../state';
+import { useSticky } from '../viewMemory';
 import {
   settingsOf, roomInvoiceLines, totalInvoiceLines, lmCategorySubtotals,
   roomSummary, roomTypeCounts, roomsOfType, levelsOfType,
@@ -20,10 +20,11 @@ type Tab = 'summary' | 'room' | 'total';
 
 export default function Invoices() {
   const { state, path, dirty, saveNow, update } = useProject();
-  const [tab, setTab] = useState<Tab>('summary');
-  const [roomType, setRoomType] = useState<number>(0);
-  const [hideRoomNums, setHideRoomNums] = useState(false);
-  const [includeMatrix, setIncludeMatrix] = useState(false);
+  // remembered across navigation — see viewMemory
+  const [tab, setTab] = useSticky<Tab>('invoices.tab', 'summary');
+  const [roomType, setRoomType] = useSticky<number>('invoices.roomType', 0);
+  const [hideRoomNums, setHideRoomNums] = useSticky('invoices.hideRoomNums', false);
+  const [includeMatrix, setIncludeMatrix] = useSticky('invoices.includeMatrix', false);
   if (!state) return null;
   const s = settingsOf(state);
   const counts = roomTypeCounts(state);

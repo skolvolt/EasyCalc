@@ -18,7 +18,11 @@ export function settingsOf(state: ProjectState): Settings {
     gst: state.details.gst ?? 0.1,
     equipmentContingency:
       state.categories.find((c) => c.name === EQUIPMENT_CATEGORY)?.contingency ?? 0,
-    categoryContingency: new Map(state.categories.map((c) => [c.name, c.contingency ?? 0])),
+    // Keyed on the trimmed name: category strings on L&M rows can carry stray
+    // whitespace from imported lists ("Installation " in real projects), and
+    // categoryBreakdown already trims both sides when attributing revenue.
+    // Matching loosely here too keeps one category from being two things.
+    categoryContingency: new Map(state.categories.map((c) => [c.name.trim(), c.contingency ?? 0])),
   };
 }
 
@@ -96,12 +100,21 @@ export interface LmDerived {
  */
 export function lmDerived(item: LmItem, s: Settings): LmDerived {
   const cost = item.cost ?? 0;
-  const cont = s.categoryContingency.get(item.category ?? '') ?? 0;
+  const cont = s.categoryContingency.get((item.category ?? '').trim()) ?? 0;
   if (item.kind === 'labour') {
-    const sell = item.sell_entered ?? 0;
-    const markupWithContingency = cost === 0 ? 0 : sell / cost - 1;
+    // sell_entered holds the sell *before* contingency. Contingency is applied
+    // here, at calculation time, so changing it on the Dashboard re-prices every
+    // labour row live — the same way equipment contingency works (see itemSell).
+    // It used to be folded into sell_entered as the markup was typed, which left
+    // the stored price carrying whichever contingency happened to be set that
+    // day and made later changes to the field do nothing.
+    const base = item.sell_entered ?? 0;
+    const markup = cost === 0 ? 0 : base / cost - 1;
+    const markupWithContingency = markup + cont;
+    // cost 0 can't derive a price — keep whatever sell was entered against it
+    const sell = cost === 0 ? base : cost * (1 + markupWithContingency);
     return {
-      markup: markupWithContingency - cont,
+      markup,
       markupWithContingency,
       margin: sell === 0 ? 0 : (sell - cost) / sell,
       sell,

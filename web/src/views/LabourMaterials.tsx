@@ -114,8 +114,9 @@ export default function LabourMaterials({ orphanFilter = false }: { orphanFilter
 
   // Back-solve helpers — storage stays in base currency (labour: sell; others: markup).
   // Values arrive already parsed from NumInput (money in base currency, % as a fraction).
+  // trimmed match, as in the engine — imported rows can carry stray whitespace
   const contOf = (it: LmItem) =>
-    state.categories.find((c) => c.name === (it.category ?? ''))?.contingency ?? 0;
+    state.categories.find((c) => c.name.trim() === (it.category ?? '').trim())?.contingency ?? 0;
 
   const setCost = (i: number, n: number | null) =>
     update((dr) => (dr.labour_materials[i].cost = n));
@@ -134,8 +135,9 @@ export default function LabourMaterials({ orphanFilter = false }: { orphanFilter
     update((dr) => {
       const it = dr.labour_materials[i];
       const m = frac ?? 0;
-      const cont = contOf(it);
-      if (it.kind === 'labour') it.sell_entered = (it.cost ?? 0) * (1 + m + cont);
+      // Store the price before contingency — the engine adds it at calculation
+      // time, so folding it in here would bake it in twice.
+      if (it.kind === 'labour') it.sell_entered = (it.cost ?? 0) * (1 + m);
       else it.markup_entered = m;
     });
 
@@ -144,7 +146,9 @@ export default function LabourMaterials({ orphanFilter = false }: { orphanFilter
       const it = dr.labour_materials[i];
       const sell = sellBase ?? 0;
       const cont = contOf(it);
-      if (it.kind === 'labour') it.sell_entered = sell;
+      // The field shows the sell *including* contingency, so strip it back out
+      // to store the base price.
+      if (it.kind === 'labour') it.sell_entered = sell - (it.cost ?? 0) * cont;
       else it.markup_entered = it.cost ? sell / it.cost - 1 - cont : 0;
     });
 
@@ -156,7 +160,8 @@ export default function LabourMaterials({ orphanFilter = false }: { orphanFilter
       const cost = it.cost ?? 0;
       const sell = margin === 0 ? cost : cost / (1 - margin);
       const cont = contOf(it);
-      if (it.kind === 'labour') it.sell_entered = sell;
+      // as above — the target sell includes contingency; store it net of it
+      if (it.kind === 'labour') it.sell_entered = sell - cost * cont;
       else it.markup_entered = cost ? sell / cost - 1 - cont : 0;
     });
 

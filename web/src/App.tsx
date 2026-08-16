@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useProject, isEmbedded } from './state';
 import { roomTypeCounts } from '@shared/engine';
 import { registerSelectRow, publishSelectionSummary } from './gridSelection';
+import { resetViewMemory } from './viewMemory';
 import SelectionSummary from './components/SelectionSummary';
 import ScrollTopButton from './components/ScrollTopButton';
 import UpdateDialog from './components/UpdateDialog';
@@ -82,10 +83,29 @@ function useColumnResizing() {
     let startX = 0;
     let startW = 0;
     const EDGE = 7;
-    const nearEdge = (th: HTMLElement, e: MouseEvent) =>
-      th.getBoundingClientRect().right - e.clientX < EDGE;
     const thAt = (e: MouseEvent) =>
       (e.target as HTMLElement).closest?.('table.grid th') as HTMLElement | null;
+
+    /**
+     * Which column this pointer position resizes, or null.
+     *
+     * Sitting exactly on a divider used to fall into a dead spot: that pixel
+     * belongs to the *next* header, whose own right edge is a full column away,
+     * so the grab zone vanished right where the line is and reappeared a few
+     * pixels either side. Being near a header's left edge now resolves to the
+     * previous column, making the zone continuous across the divider.
+     */
+    const resizeTarget = (e: MouseEvent): HTMLElement | null => {
+      const th = thAt(e);
+      if (!th) return null;
+      const r = th.getBoundingClientRect();
+      if (r.right - e.clientX < EDGE) return th;
+      if (e.clientX - r.left < EDGE) {
+        const prev = th.previousElementSibling as HTMLElement | null;
+        if (prev?.tagName === 'TH') return prev;
+      }
+      return null;
+    };
 
     const onMove = (e: MouseEvent) => {
       if (target) {
@@ -95,12 +115,11 @@ function useColumnResizing() {
         e.preventDefault();
         return;
       }
-      const th = thAt(e);
-      document.body.style.cursor = th && nearEdge(th, e) ? 'col-resize' : '';
+      document.body.style.cursor = resizeTarget(e) ? 'col-resize' : '';
     };
     const onDown = (e: MouseEvent) => {
-      const th = thAt(e);
-      if (th && nearEdge(th, e)) {
+      const th = resizeTarget(e);
+      if (th) {
         target = th;
         startX = e.clientX;
         startW = th.getBoundingClientRect().width;
@@ -110,8 +129,8 @@ function useColumnResizing() {
     const onUp = () => { target = null; };
     // Double-click a column's right edge to snap it back to its default width.
     const onDbl = (e: MouseEvent) => {
-      const th = thAt(e);
-      if (th && nearEdge(th, e)) {
+      const th = resizeTarget(e);
+      if (th) {
         th.style.width = '';
         th.style.minWidth = '';
         e.preventDefault();
@@ -557,6 +576,10 @@ export default function App() {
   useColumnResizing();
   useSpreadsheetGrid();
   useCrosshair();
+
+  // A remembered room / section / column filter belongs to the project it was
+  // set in, so forget them all when a different one is opened.
+  useEffect(() => { resetViewMemory(); }, [path]);
 
   // Orphan check: a value entered against a system type that no room uses shows
   // red in the grids; while any exists, a pulsing warning sits top-right.
