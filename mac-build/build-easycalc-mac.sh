@@ -8,10 +8,18 @@
 set -euo pipefail
 
 NODE_VERSION="v22.11.0"   # bundled runtime (Node 22 LTS). Bump if you like.
-APP_VERSION="0.4.0"
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
+
+# Version comes from the packaged app's manifest — the same file the running app
+# reports as "current" and the updater compares against the release tag. Read it
+# here rather than hardcoding, so the .app can't claim a different version than
+# the Windows installer cut from the same commit.
+VERSION_FILE="$REPO/package-build/app/package.json"
+APP_VERSION="$(node -p "require('$VERSION_FILE').version" 2>/dev/null || true)"
+[ -n "$APP_VERSION" ] || { echo "Could not read version from $VERSION_FILE"; exit 1; }
+
 DIST="$HERE/dist"
 APP="$DIST/EasyCalc.app"
 RES="$APP/Contents/Resources"
