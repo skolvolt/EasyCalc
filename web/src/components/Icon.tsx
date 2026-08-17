@@ -94,6 +94,26 @@ const ICONS: Record<string, ReactNode> = {
       <line x1="3" y1="18" x2="21" y2="18" />
     </>
   ),
+  // Indent / outdent: the middle lines pushed in, with an arrow showing which
+  // way the text moves.
+  indent: (
+    <>
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="11" y1="10" x2="21" y2="10" />
+      <line x1="11" y1="14" x2="21" y2="14" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+      <polyline points="3 9 7 12 3 15" />
+    </>
+  ),
+  outdent: (
+    <>
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="11" y1="10" x2="21" y2="10" />
+      <line x1="11" y1="14" x2="21" y2="14" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+      <polyline points="7 9 3 12 7 15" />
+    </>
+  ),
 };
 
 export default function Icon({ name, className }: { name: string; className?: string }) {

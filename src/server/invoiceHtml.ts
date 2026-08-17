@@ -99,7 +99,7 @@ function shell(title: string, body: string, state: ProjectState, mode: HeaderMod
     .notes-html ul, .notes-html ol { margin: 4px 0 4px 22px; }
     /* A dragged-in width is inline on the img and carries through to here.
        Clamp so an oversized one can't run off the page, and keep proportions. */
-    .notes-html img { max-width: 100%; height: auto; }
+    .notes-html img { max-width: 100%; height: auto; margin: 0.4em 1ch; }
     /* a floated (text-wrapped) image must not escape its block */
     .notes-html::after { content: ''; display: block; clear: both; }
     .floorplan { text-align: center; margin: 14px 0 18px; }

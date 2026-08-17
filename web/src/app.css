@@ -693,6 +693,52 @@ table.grid input.num-error {
    (selects are also .notes-tool, so this is scoped to buttons) */
 button.notes-tool { display: inline-flex; align-items: center; justify-content: center; min-height: 28px; }
 .notes-tool svg { display: block; }
+
+/* Colour buttons open a small swatch palette. Deliberately not a native
+   <input type="color">: that takes focus and collapses the selection you were
+   about to colour. */
+.notes-colourwrap { position: relative; display: inline-flex; }
+/* The familiar "A over a colour bar" — the bar shows what the button does at a
+   glance, so text colour reads as text colour rather than another letter. */
+.notes-colour-a { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; line-height: 1; }
+.notes-colour-a .a { font-weight: 700; font-size: 13px; }
+.notes-colour-a .bar { display: block; width: 15px; height: 4px; border-radius: 1px; }
+.notes-hilite { background: #ffe066; color: #1a2433; padding: 0 2px; border-radius: 2px; }
+.notes-swatches {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 40;
+  display: flex; flex-direction: column; gap: 7px;
+  padding: 8px; border-radius: 7px;
+  background: var(--panel); border: 1px solid var(--line);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+}
+.notes-swatch-grid { display: grid; grid-template-columns: repeat(8, 20px); gap: 5px; }
+.notes-custom-btn {
+  font: inherit; font-size: 12px; padding: 4px 8px; cursor: pointer;
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 5px;
+}
+.notes-custom-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.notes-custom-btn:disabled { opacity: 0.5; cursor: default; }
+.notes-custom { display: flex; align-items: center; gap: 6px; }
+.notes-custom input[type="color"] {
+  width: 34px; height: 26px; padding: 0; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 5px; background: none;
+}
+.notes-hex {
+  width: 92px; font: inherit; font-size: 12px; padding: 4px 6px;
+  border: 1px solid var(--line); border-radius: 5px;
+  background: var(--panel); color: var(--ink);
+}
+.notes-swatch {
+  width: 20px; height: 20px; padding: 0; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 4px;
+}
+.notes-swatch:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* "no highlight" reads as a crossed-out empty square */
+.notes-swatch.none {
+  background: linear-gradient(to top right, transparent 45%, var(--bad) 45%,
+              var(--bad) 55%, transparent 55%);
+}
 .notes-sep { width: 1px; height: 20px; background: var(--line); margin: 0 2px; }
 .notes-editor {
   min-height: 440px; padding: 16px 18px; line-height: 1.5; outline: none; overflow-y: auto;
@@ -712,6 +758,12 @@ button.notes-tool { display: inline-flex; align-items: center; justify-content: 
    sit outside it and keep their own cursors */
 .notes-editor img { max-width: 100%; height: auto; cursor: grab; }
 .notes-editor img:active { cursor: grabbing; }
+
+/* Keep text off the image's edges — one character's width to the sides, a
+   little less above and below. A default rather than an inline style, so it
+   covers images that were only pasted and never positioned; the wrap and
+   align buttons write their own margins and take over from here. */
+.notes-editor img, .rt-content img { margin: 0.4em 1ch; }
 
 /* Resize frame drawn over the picked image. It lives outside the
    contentEditable, so none of it ends up in the saved notes HTML. */

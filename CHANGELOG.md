@@ -2,6 +2,21 @@
 
 All notable changes to EasyCalc. Newest first.
 
+## 0.4.8
+
+**Notes formatting.** The toolbar gains the things it was missing:
+
+- **Font** — ten typefaces that ship with Windows and macOS, so exports render what you picked.
+- **Size in pixels** — 9px to 40px, instead of the browser's seven vague sizes.
+- **Text colour and highlight** — a traditional swatch palette, plus **Custom…** for a full colour picker and a hex box.
+- **Indent and outdent.**
+
+**Fixed: the image transform handles were offset from the image.** If you'd zoomed the app in or out (Ctrl+scroll), the resize frame sat away from the picture and resizing tracked the wrong distance. It now lines up exactly at any zoom level.
+
+**Fixed: colouring text de-selected it.** Choosing a colour cleared the selection before it could be applied. Selecting text and colouring it now works as expected — the same problem affected the Font and paragraph Style dropdowns.
+
+**Images keep their distance.** Text no longer runs hard against the edge of a picture; there's a character's width of space around it, in the app and in exports.
+
 ## 0.4.7
 
 **Images in notes are now editable.** Paste a picture into any Notes field and it can be sized, placed and moved — previously it landed at whatever size it happened to be and stayed there.
