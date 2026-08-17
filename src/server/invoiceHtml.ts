@@ -97,6 +97,11 @@ function shell(title: string, body: string, state: ProjectState, mode: HeaderMod
     .notes-html h2 { font-size: 16px; color: #1a2433; margin: 6px 0 3px; }
     .notes-html h3 { font-size: 14px; margin: 6px 0 3px; }
     .notes-html ul, .notes-html ol { margin: 4px 0 4px 22px; }
+    /* A dragged-in width is inline on the img and carries through to here.
+       Clamp so an oversized one can't run off the page, and keep proportions. */
+    .notes-html img { max-width: 100%; height: auto; }
+    /* a floated (text-wrapped) image must not escape its block */
+    .notes-html::after { content: ''; display: block; clear: both; }
     .floorplan { text-align: center; margin: 14px 0 18px; }
     .floorplan img { max-width: 100%; max-height: 430px; }
     table { border-collapse: collapse; width: 100%; margin-top: 10px; }

@@ -689,6 +689,10 @@ table.grid input.num-error {
   background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 5px;
 }
 .notes-tool:hover { border-color: var(--accent); color: var(--accent); }
+/* icon buttons keep the same height and centring as the lettered ones
+   (selects are also .notes-tool, so this is scoped to buttons) */
+button.notes-tool { display: inline-flex; align-items: center; justify-content: center; min-height: 28px; }
+.notes-tool svg { display: block; }
 .notes-sep { width: 1px; height: 20px; background: var(--line); margin: 0 2px; }
 .notes-editor {
   min-height: 440px; padding: 16px 18px; line-height: 1.5; outline: none; overflow-y: auto;
@@ -702,6 +706,49 @@ table.grid input.num-error {
    bottom stays in view instead of growing past the window (zoom-aware). */
 .richtext-fill { display: flex; flex-direction: column; height: calc(100vh / var(--ui-zoom, 1) - 140px); }
 .richtext-fill .notes-editor { flex: 1 1 auto; min-height: 0; }
+/* Pasted images: never wider than the editor, and keep their proportions when
+   an explicit width has been dragged in. */
+/* grab anywhere on the image to move it through the text; the resize handles
+   sit outside it and keep their own cursors */
+.notes-editor img { max-width: 100%; height: auto; cursor: grab; }
+.notes-editor img:active { cursor: grabbing; }
+
+/* Resize frame drawn over the picked image. It lives outside the
+   contentEditable, so none of it ends up in the saved notes HTML. */
+.richtext { position: relative; }
+.img-sel {
+  position: absolute; z-index: 5; pointer-events: none;
+  outline: 1.5px solid var(--accent); outline-offset: 1px;
+}
+.img-handle {
+  position: absolute; width: 11px; height: 11px; pointer-events: auto;
+  background: var(--panel); border: 1.5px solid var(--accent); border-radius: 2px;
+}
+.img-handle.nw { left: -6px;  top: -6px;    cursor: nwse-resize; }
+.img-handle.ne { right: -6px; top: -6px;    cursor: nesw-resize; }
+.img-handle.sw { left: -6px;  bottom: -6px; cursor: nesw-resize; }
+.img-handle.se { right: -6px; bottom: -6px; cursor: nwse-resize; }
+.img-handle.n  { left: 50%; top: -6px;    transform: translateX(-50%); cursor: ns-resize; }
+.img-handle.s  { left: 50%; bottom: -6px; transform: translateX(-50%); cursor: ns-resize; }
+.img-handle.w  { left: -6px;  top: 50%; transform: translateY(-50%); cursor: ew-resize; }
+.img-handle.e  { right: -6px; top: 50%; transform: translateY(-50%); cursor: ew-resize; }
+
+/* second toolbar row, shown only while an image is picked */
+.notes-toolbar-img { border-radius: 0; border-top: 1px dashed var(--line); background: var(--accent-soft); }
+.notes-imglabel {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--muted); margin-right: 2px;
+}
+
+/* A floated image must not escape the block it sits in — without this the
+   editor, the on-screen preview and the PDF all collapse around it. */
+.notes-editor::after, .rt-content::after { content: ''; display: block; clear: both; }
+.img-size {
+  position: absolute; right: 0; bottom: -21px; padding: 1px 6px;
+  background: var(--accent); color: #fff; border-radius: 3px;
+  font-size: 11px; line-height: 1.5; white-space: nowrap;
+}
+
 .notes-editor h1 { font-size: 22px; margin: 10px 0 4px; }
 .notes-editor h2 { font-size: 18px; margin: 8px 0 4px; }
 .notes-editor h3 { font-size: 15px; margin: 8px 0 4px; }
@@ -713,6 +760,7 @@ table.grid input.num-error {
 .rt-content h2 { font-size: 17px; margin: 6px 0 3px; }
 .rt-content h3 { font-size: 15px; margin: 6px 0 3px; }
 .rt-content ul, .rt-content ol { margin-left: 22px; }
+.rt-content img { max-width: 100%; height: auto; }
 
 /* ---- Room Summary: notes + floorplan editor ---- */
 .summary-extras { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
@@ -721,9 +769,11 @@ table.grid input.num-error {
   width: 100%; min-height: 120px; padding: 8px 10px; font: inherit; resize: vertical;
   border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink);
 }
-.floorplan-drop {
-  border: 1px dashed var(--line); border-radius: 8px; padding: 10px; text-align: center;
-  min-height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+/* Only shown for rooms that still carry a pre-notes floorplan image, so it can
+   be cleared. The upload control it replaced is gone — images live in the notes. */
+.legacy-floorplan {
+  display: flex; gap: 14px; align-items: flex-start; margin-top: 14px; padding: 12px;
+  border: 1px dashed var(--line); border-radius: 8px;
 }
-.floorplan-drop img { max-width: 100%; max-height: 220px; border-radius: 4px; display: block; }
+.legacy-floorplan img { max-width: 200px; max-height: 140px; border-radius: 4px; display: block; }
 @media (max-width: 720px) { .summary-extras { grid-template-columns: 1fr; } }

@@ -2,6 +2,20 @@
 
 All notable changes to EasyCalc. Newest first.
 
+## 0.4.7
+
+**Images in notes are now editable.** Paste a picture into any Notes field and it can be sized, placed and moved — previously it landed at whatever size it happened to be and stayed there.
+
+- **Resize from any corner or edge** — eight grab points, and the proportions stay locked however you drag.
+- **Move it anywhere in the text.** Grab the middle of an image and drag; the text reflows around it as you go, and it hugs whichever side you drop it nearest.
+- **Wrap left / Wrap right / No wrap**, plus buttons to place the image left, centred or right.
+- **Text alignment** — left, centre, right and justify, using the usual line-style icons.
+- **Reset size** returns an image to its original dimensions.
+
+Everything you set carries through to the **PDF and print exports** exactly as it looks on screen.
+
+**Removed the separate floorplan upload.** Images belong in the notes now, where they can actually be positioned. Rooms that already have a floorplan keep printing it and gain a **Remove floorplan** button, so nothing is stranded.
+
 ## 0.4.6
 
 **Fixed: category contingency now works on every category.** Setting a contingency on **Installation** — or any labour category — did nothing to the totals. Labour prices had the contingency baked in at the moment you typed a mark-up, so the stored price kept whichever contingency was set that day and later changes to the field had no effect. Contingency is now applied when the numbers are calculated, exactly as it already worked for Equipment, so changing it re-prices everything live.

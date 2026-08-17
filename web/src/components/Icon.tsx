@@ -60,6 +60,40 @@ const ICONS: Record<string, ReactNode> = {
       <polyline points="22 6 12 13 2 6" />
     </>
   ),
+  // Alignment: the traditional stack of ragged lines. The long lines are full
+  // width in every one; the short ones are what read as left / centre / right.
+  alignLeft: (
+    <>
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="10" x2="15" y2="10" />
+      <line x1="3" y1="14" x2="21" y2="14" />
+      <line x1="3" y1="18" x2="15" y2="18" />
+    </>
+  ),
+  alignCenter: (
+    <>
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="6" y1="10" x2="18" y2="10" />
+      <line x1="3" y1="14" x2="21" y2="14" />
+      <line x1="6" y1="18" x2="18" y2="18" />
+    </>
+  ),
+  alignRight: (
+    <>
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="9" y1="10" x2="21" y2="10" />
+      <line x1="3" y1="14" x2="21" y2="14" />
+      <line x1="9" y1="18" x2="21" y2="18" />
+    </>
+  ),
+  alignJustify: (
+    <>
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+      <line x1="3" y1="14" x2="21" y2="14" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </>
+  ),
 };
 
 export default function Icon({ name, className }: { name: string; className?: string }) {

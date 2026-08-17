@@ -10,11 +10,6 @@ import RichText from '../components/RichText';
 const hasContent = (html: string | null | undefined) =>
   !!html && html.replace(/<[^>]+>/g, '').replace(/&nbsp;|\s/g, '') !== '';
 
-const readFileAsDataUrl = (f: File, cb: (dataUrl: string) => void) => {
-  const reader = new FileReader();
-  reader.onload = () => cb(String(reader.result));
-  reader.readAsDataURL(f);
-};
 
 type Tab = 'summary' | 'room' | 'total';
 
@@ -177,49 +172,40 @@ export default function Invoices() {
 
       {tab === 'room' && selectedType && (
         <div className="panel">
-          <h2>Notes &amp; floorplan — {selectedType.name}</h2>
+          <h2>Notes — {selectedType.name}</h2>
           <div className="subtitle" style={{ marginBottom: 12 }}>
             Specific to this room type. Choose a different room above to edit its own notes.
+            Paste images straight into the notes and drag their corners to size them.
           </div>
-          <div className="summary-extras">
-            <div>
-              <h3>Notes</h3>
-              <RichText
-                key={roomTypeIdx}
-                value={notes ?? ''}
-                onChange={(html) => update((dr) => (dr.room_types[rtArrIdx].notes = html))}
-                minHeight={160}
-                placeholder={`Notes for ${selectedType.name} — shown at the top of its Room Invoice / Bill of Materials PDF…`}
-              />
-            </div>
-            <div>
-              <h3>Floorplan image (printed centred)</h3>
-              <div className="floorplan-drop">
-                {floorplan
-                  ? <img src={floorplan} alt="floorplan" />
-                  : <span style={{ color: 'var(--muted)', fontSize: 12 }}>No floorplan uploaded</span>}
-                <div className="toolbar" style={{ marginBottom: 0, justifyContent: 'center' }}>
-                  <label className="btn-outline" style={{ cursor: 'pointer' }}>
-                    {floorplan ? 'Replace image' : 'Upload image'}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      style={{ display: 'none' }}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) readFileAsDataUrl(f, (url) => update((dr) => (dr.room_types[rtArrIdx].floorplan = url)));
-                      }}
-                    />
-                  </label>
-                  {floorplan && (
-                    <button className="btn-outline" onClick={() => update((dr) => (dr.room_types[rtArrIdx].floorplan = null))}>
-                      Remove
-                    </button>
-                  )}
+          <RichText
+            key={roomTypeIdx}
+            value={notes ?? ''}
+            onChange={(html) => update((dr) => (dr.room_types[rtArrIdx].notes = html))}
+            minHeight={160}
+            placeholder={`Notes for ${selectedType.name} — shown at the top of its Room Invoice / Bill of Materials PDF…`}
+          />
+          {/* The separate floorplan upload is gone — images belong in the notes
+              now. Rooms that already have one keep printing it, with a way to
+              clear it, so an existing project isn't stranded with an image it
+              can no longer manage. */}
+          {floorplan && (
+            <div className="legacy-floorplan">
+              <img src={floorplan} alt="floorplan" />
+              <div>
+                <b>This room has a separate floorplan image</b>
+                <div className="subtitle" style={{ margin: '2px 0 8px' }}>
+                  Added before images could go in the notes. It still prints, centred, below them.
+                  To reposition or resize it, paste it into the notes instead and remove it here.
                 </div>
+                <button
+                  className="btn-outline"
+                  onClick={() => update((dr) => (dr.room_types[rtArrIdx].floorplan = null))}
+                >
+                  Remove floorplan
+                </button>
               </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
