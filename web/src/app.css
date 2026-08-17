@@ -287,20 +287,104 @@ body.dark button.btn.minus:hover { background: rgba(229, 113, 95, 0.15); }
 .room-matrix td.mx-rownum, .room-matrix th.mx-rownum {
   width: 34px; min-width: 34px; text-align: center; color: var(--muted); font-size: 11px; padding: 2px;
 }
-.room-matrix th.mx-type { padding: 0; min-width: 140px; vertical-align: middle; }
-.mx-type-head { display: flex; align-items: center; gap: 2px; padding: 3px 5px; }
-.mx-type-head input {
-  border: none; background: transparent; font-weight: 600; color: inherit;
-  min-width: 0; flex: 1 1 auto; padding: 2px; font-size: 12px;
+/* Type columns: the name is set at 45° rising to the right, so the column only
+   needs to be wide enough for its buttons rather than for the whole title.
+   That took the width from 140px to 46px — three times as many types visible —
+   and long names are readable in full instead of being clipped. */
+/* Column widths come from the colgroup, and fixed layout means cell content
+   cannot argue with them. Width auto then makes the table exactly the sum of
+   its columns, so it neither stretches to the panel nor gets pushed wider by
+   an input's intrinsic size. */
+/* No outer table border: with the slanted row inside the table, that border
+   drew a rectangle around the empty space above the row headers. The edge
+   cells' own borders still frame the grid itself. */
+table.grid.room-matrix { table-layout: fixed; width: auto; border: none; }
+.room-matrix col.c-drag  { width: 26px; }
+.room-matrix col.c-num   { width: 34px; }
+.room-matrix col.c-level { width: 86px; }
+.room-matrix col.c-area  { width: 86px; }
+.room-matrix col.c-room  { width: 96px; }
+.room-matrix col.c-type  { width: 46px; }
+.room-matrix col.c-end   { width: 42px; }
+.room-matrix th.mx-type { padding: 0; vertical-align: bottom; }
+.mx-type-head { display: flex; flex-direction: column; }
+
+/* ---- the slanted name row ------------------------------------------------
+   One wide cell holding every band, each placed by arithmetic (46px per type,
+   exact because the columns are a fixed width). The box clips at its own
+   bottom edge, and that clip is what gives a band a flat base meeting the row
+   line at an acute angle, instead of a rotated rectangle floating above it.
+   It also trims the final band at the table edge, so the slant costs no extra
+   horizontal scrolling. */
+.room-matrix tr.mx-slant-row th { border: none; padding: 0; background: transparent; }
+/* No clipping. The skew gives the block a flat base on its own, so the clip
+   was only ever truncating the final block at the table edge — it now runs on
+   past to complete its shape. */
+.mx-slant-box { position: relative; height: 116px; }
+
+/* One block per type. Its base is the column itself, so neighbours tile edge
+   to edge with no gaps, and the bottom sits flush on the table. */
+table.grid.room-matrix .mx-type-band {
+  position: absolute; bottom: 0; left: 0; height: 100%;
 }
-.mx-type-head input:focus { background: rgba(127, 150, 190, 0.18); outline: none; border-radius: 3px; }
-.mx-drag { cursor: grab; opacity: 0.55; font-size: 12px; user-select: none; flex: 0 0 auto; }
+/* Skew, not rotate: the left and right borders lean to 45° while the top and
+   bottom stay horizontal — a parallelogram. A rotated rectangle would keep its
+   90° corners and leave triangular gaps between blocks. */
+.mx-band-shape {
+  position: absolute; inset: 0;
+  transform: skewX(-45deg); transform-origin: left bottom;
+  background: var(--accent-soft);
+  border: 1px solid var(--line); border-bottom: none;
+}
+/* The text is rotated on its own so it runs along the slant undistorted. Its
+   height is the block's perpendicular thickness, 46px × sin45.
+
+   Anchored on the block's bottom-RIGHT corner: a rotated strip extends
+   perpendicular-outward from its own baseline, and from the right border that
+   direction points into the block. Anchoring on the left corner put every
+   label over the *previous* block — which read as the titles being a column
+   out, and left the first one on bare white. Nudging it across with a
+   translate fixed the side but pushed the strip's start below the row line. */
+.mx-band-text {
+  position: absolute; left: 100%; bottom: 0; width: 158px; height: 32.5px;
+  transform-origin: left bottom; transform: rotate(-45deg);
+  display: flex; align-items: center;
+}
+table.grid.room-matrix .mx-band-text input {
+  width: 100%; min-width: 0; border: none; background: transparent;
+  font-weight: 600; color: inherit;
+  padding: 2px 6px; font-size: 11px; text-align: left; text-overflow: ellipsis;
+}
+table.grid.room-matrix .mx-band-text input:focus { background: rgba(127, 150, 190, 0.22); outline: none; border-radius: 3px; }
+
+/* Level / Area / Room No.: no wider than their own titles, and only as tall as
+   the text needs — the slanted names sit in the row above, so nothing stretches
+   these. `width: 1%` with nowrap is the table-layout idiom for shrink-to-fit. */
+.room-matrix th.mx-fixed { text-align: center; vertical-align: middle; padding: 5px 8px; }
+.mx-type-btns {
+  display: flex; align-items: center; justify-content: center; gap: 1px;
+  padding: 2px 0; flex: 0 0 auto;
+}
+/* An <input> carries a large intrinsic minimum width, and auto table layout
+   honours it — which held the quantity columns at 77px however narrow the
+   header got. Zero it so the column can shrink to the width we actually ask
+   for; the field still fills whatever space the column ends up with. */
+table.grid.room-matrix td.qtycell { min-width: 0; width: 46px; padding: 4px 3px; }
+table.grid.room-matrix td.qtycell input { min-width: 0; }
+.mx-drag { cursor: grab; opacity: 0.55; font-size: 11px; user-select: none; flex: 0 0 auto; }
 .mx-drag:active { cursor: grabbing; }
 /* identical to the per-row remove button */
-.mx-type-head .btn.minus { flex: 0 0 auto; padding: 0 8px; }
+.mx-type-btns .btn.minus { flex: 0 0 auto; padding: 0 4px; font-size: 11px; line-height: 1.5; }
 .room-matrix th.mx-drop { outline: 2px dashed var(--accent); outline-offset: -2px; }
 .room-matrix th.mx-add { width: 42px; min-width: 42px; text-align: center; padding: 2px; }
-.room-matrix th.mx-add button, .mx-addrow { padding: 1px 9px; font-size: 15px; line-height: 1.3; }
+.room-matrix th.mx-add button { padding: 1px 9px; font-size: 15px; line-height: 1.3; }
+/* Needs button.btn's specificity to beat it: .mx-addrow alone lost to
+   `button.btn { padding: 7px 14px }`, which made the button wider than the
+   34px row-number column it sits in. */
+button.btn.mx-addrow {
+  padding: 0 6px; font-size: 14px; line-height: 1.5;
+  display: block; margin: 0 auto;
+}
 .room-matrix td.mx-del { width: 36px; text-align: center; }
 .room-matrix td.mx-del button { padding: 0 8px; }
 .room-matrix tr.mx-count td { font-weight: 700; background: var(--accent-soft); }
@@ -642,12 +726,12 @@ tr.row-dragging td { opacity: 0.4; transition: opacity 0.1s; }
 .sec-head .sec-add:hover { background: rgba(255, 255, 255, 0.32); }
 
 /* ---- Rooms: duplicate-type "D" button ---- */
-.mx-type-head .mx-col-dup {
-  flex: 0 0 auto; padding: 0 6px; font-size: 12px; font-weight: 700; cursor: pointer;
+.mx-type-btns .mx-col-dup {
+  flex: 0 0 auto; padding: 0 4px; font-size: 10px; font-weight: 700; line-height: 1.6; cursor: pointer;
   background: transparent; color: var(--accent);
   border: 1px solid var(--line); border-radius: 4px;
 }
-.mx-type-head .mx-col-dup:hover { border-color: var(--accent); background: var(--accent-soft); }
+.mx-type-btns .mx-col-dup:hover { border-color: var(--accent); background: var(--accent-soft); }
 
 /* ---- Procurement: per-supplier subtotal row ---- */
 table.grid tr.subtotal td { background: var(--accent-soft); font-weight: 600; }

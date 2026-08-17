@@ -2,6 +2,16 @@
 
 All notable changes to EasyCalc. Newest first.
 
+## 0.4.9
+
+**Slanted room type titles.** On Rooms & Types the type names now run up the page at 45°, in their own band above the header. Far more of the matrix fits on screen without scrolling, and you can read every title in full instead of guessing from the first few letters. Level, Area and Room No. shrank to fit their own headings while they were at it.
+
+**Ctrl+click to total scattered cells.** Hold Ctrl (Cmd on a Mac) and click any cells you like — they don't have to be next to each other — and the summary box at the bottom right counts and totals them. Ctrl+click a cell again to drop it from the tally; a plain click or Escape clears the lot. Copy, paste and delete still work on rectangles only.
+
+**Fixed: reordering a room type often did nothing.** Grabbing a column's ⠿ handle worked maybe one try in five — the handle sits close enough to the column edge that the column-resize grab zone was swallowing the click. The resize zone now leaves handles and buttons alone.
+
+**Fixed: the + button for adding a room** was wider than the column it sits in.
+
 ## 0.4.8
 
 **Notes formatting.** The toolbar gains the things it was missing:

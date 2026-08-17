@@ -96,6 +96,12 @@ function useColumnResizing() {
      * previous column, making the zone continuous across the divider.
      */
     const resizeTarget = (e: MouseEvent): HTMLElement | null => {
+      // Never claim a press that landed on a control. Resizing preventDefaults
+      // the mousedown, which cancels a native drag before it starts — and in a
+      // narrow column (the room matrix's 46px type columns) the reorder handle
+      // sits well inside the edge zone, so grabbing it mostly did nothing.
+      const hit = e.target as HTMLElement | null;
+      if (hit?.closest?.('[draggable="true"], button, input, select, a, label')) return null;
       const th = thAt(e);
       if (!th) return null;
       const r = th.getBoundingClientRect();
@@ -192,6 +198,10 @@ function useSpreadsheetGrid() {
     let selAnchor: Pos | null = null;
     let selHead: Pos | null = null;
     let dragAnchor: Pos | null = null;
+    // Ctrl/Cmd-clicked cells: a scattered pick-list that feeds the summary box
+    // only. Stored as positions rather than element refs so a re-render between
+    // clicks can't leave us holding detached <td>s.
+    let picked: Pos[] = [];
 
     const cellAt = (t: HTMLTableElement, r: number, c: number) =>
       t.rows[r]?.cells[c] as HTMLTableCellElement | undefined;
@@ -247,7 +257,7 @@ function useSpreadsheetGrid() {
       nativeRange = true;
     };
     const clearSel = () => {
-      selAnchor = null; selHead = null; clearHi(); syncNativeSelection(); summarize();
+      selAnchor = null; selHead = null; picked = []; clearHi(); syncNativeSelection(); summarize();
     };
     const drawHi = () => {
       // syncNativeSelection is NOT called here — setting a real Selection on
@@ -257,6 +267,7 @@ function useSpreadsheetGrid() {
       // click to "kick" it loose). It runs once, on mouseup, once the
       // selection has settled — see onMouseUp.
       clearHi();
+      for (const p of picked) cellAt(p.table, p.r, p.c)?.classList.add('cell-sel');
       if (!selAnchor || !selHead || selAnchor.table !== selHead.table) return summarize();
       const t = selAnchor.table;
       const r1 = Math.min(selAnchor.r, selHead.r), r2 = Math.max(selAnchor.r, selHead.r);
@@ -311,15 +322,22 @@ function useSpreadsheetGrid() {
      *  render with a symbol already, so the total is in display currency
      *  either way — hence fmtMoneyDisplay, not fmtMoney, at the render end. */
     const summarize = () => {
-      const R = rect();
-      if (!R || !isMultiSel()) { publishSelectionSummary(null); return; }
+      let list: Pos[];
+      if (picked.length) {
+        list = picked;
+      } else {
+        const R = rect();
+        if (!R || !isMultiSel()) { publishSelectionSummary(null); return; }
+        list = [];
+        for (let r = R.r1; r <= R.r2; r++) for (let c = R.c1; c <= R.c2; c++) list.push({ table: R.table, r, c });
+      }
       let cells = 0, numeric = 0, sum = 0, moneyCells = 0;
-      for (let r = R.r1; r <= R.r2; r++) {
-        for (let c = R.c1; c <= R.c2; c++) {
-          const td = cellAt(R.table, r, c);
+      {
+        for (const { table, r, c } of list) {
+          const td = cellAt(table, r, c);
           if (!td || td.style.display === 'none') continue; // filter-hidden column
           cells++;
-          const inp = inputAt(R.table, r, c);
+          const inp = inputAt(table, r, c);
           const text = (inp ? inp.value : td.textContent ?? '').trim();
           if (!text || !/\d/.test(text)) continue;
           // strip thousands separators and any currency/percent decoration
@@ -444,6 +462,19 @@ function useSpreadsheetGrid() {
       if ((e.target as HTMLElement).closest?.('.keep-selection')) return;
       const loc = locate(e.target);
       if (!loc) { clearSel(); return; }
+      // Ctrl/Cmd+click builds a scattered pick-list for the summary box. It
+      // deliberately does nothing else: no focus, no copy, no drag — those all
+      // stay rectangle-only. preventDefault keeps the cell's input from taking
+      // focus, so a pick never turns into an accidental edit.
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        selAnchor = null; selHead = null;
+        const at = picked.findIndex((p) => p.table === loc.table && p.r === loc.r && p.c === loc.c);
+        if (at >= 0) picked.splice(at, 1); else picked.push(loc);
+        drawHi();
+        return;
+      }
+      picked = [];
       if (e.shiftKey) {
         e.preventDefault();
         if (!selAnchor || selAnchor.table !== loc.table) selAnchor = curCell() ?? loc;
@@ -484,7 +515,7 @@ function useSpreadsheetGrid() {
       if (e.key === 'Escape') {
         const active = document.activeElement;
         const inGrid = active instanceof HTMLInputElement && active.closest('table.grid');
-        if (selAnchor || selHead || inGrid) {
+        if (selAnchor || selHead || picked.length || inGrid) {
           clearSel();
           if (inGrid) (active as HTMLElement).blur();
         }
